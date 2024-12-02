@@ -1,0 +1,1 @@
+Projeto desenvolvido em Vue para frontend, Flask para o backend mais simples e Solidity para o codigo da blockchain

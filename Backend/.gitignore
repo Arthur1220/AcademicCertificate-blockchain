@@ -1,0 +1,78 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribuição
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Instalações de pacotes
+*.egg
+*.whl
+
+# Arquivos de log
+*.log
+
+# Virtual environments
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Arquivos do IDE
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Arquivos do sistema operacional
+.DS_Store
+Thumbs.db
+
+# Arquivos de banco de dados
+*.sqlite3
+*.db
+
+# Arquivos de configuração
+*.env
+*.ini
+*.cfg
+
+# Arquivos de teste
+.coverage
+htmlcov/
+.tox/
+.pytest_cache/
+
+# Arquivos de storage
+/storage/
+
+# Arquivos gerados pelo Flask-Migrate
+migrations/
+
+# Arquivos de cache
+.cache/
+
+# Arquivos de deployment
+*.pid
+
+# Chaves e certificados
+*.pem
+*.key
+
+# Arquivos do Jupyter Notebook
+.ipynb_checkpoints/
+
+# Arquivos do MyPy
+.mypy_cache/
+
+# Arquivos de integração contínua
+.coverage
+
+# Arquivos pessoais
+*.swp
+*~
