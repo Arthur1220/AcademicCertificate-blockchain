@@ -1,5 +1,3 @@
-# backend/tests/test_routes.py
-
 import os
 import tempfile
 import pytest
@@ -8,43 +6,25 @@ from app.models import Certificate
 from unittest.mock import patch, Mock
 from datetime import datetime
 
-def test_register_institution(test_client):
-    with patch('app.routes.register_institution') as mock_register:
-        # Simula um objeto de recibo com o atributo transactionHash
-        mock_receipt = Mock()
-        mock_receipt.transactionHash = b'0xmockedtransactionhash'
-        mock_register.return_value = mock_receipt
-
-        response = test_client.post('/register_institution', json={
-            'name': 'Instituição XYZ',
-            'cnpj': '12.345.678/0001-90',
-            'responsible': 'Prof. João'
-        })
-
-        assert response.status_code == 200
-        assert response.json['status'] == 'success'
-        assert 'transaction_hash' in response.json
-
 def test_register_certificate(test_client):
     with patch('app.routes.register_certificate') as mock_register_cert:
-        # Simula um objeto de recibo com o atributo transactionHash
+        # Simula um objeto de recibo com o atributo transactionHash e o endereço do emissor
         mock_receipt = Mock()
         mock_receipt.transactionHash = b'0xmockedtransactionhash'
-        mock_register_cert.return_value = mock_receipt
+        mock_register_cert.return_value = (mock_receipt, '0xEmissorEndereco')
 
         data = {
             'certificate_hash': '0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890',
             'student_name': 'Maria Silva',
             'issue_date': '1700000000',
-            'institution_address': '0xInstituicaoEndereco'
+            'issuer_private_key': '0xPrivateKey'
         }
 
         # Cria um arquivo temporário para upload
         with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as tmp_file:
             tmp_file.write(b'Teste de certificado')
             tmp_file.seek(0)
-            file_tuple = (tmp_file, 'certificado.pdf')
-            data['file'] = file_tuple
+            data['file'] = (tmp_file, 'certificado.pdf')
 
             response = test_client.post(
                 '/register_certificate',
@@ -60,12 +40,12 @@ def test_register_certificate(test_client):
         assert 'transaction_hash' in response.json
         assert 'file_path' in response.json
 
-def test_get_certificate(test_client):
+def test_get_certificate_by_hash(test_client):
     with patch('app.routes.get_certificate') as mock_get_cert:
         mock_get_cert.return_value = {
             'studentName': 'Maria Silva',
             'issueDate': 1700000000,
-            'institutionAddress': '0xInstituicaoEndereco'
+            'issuerAddress': '0xEmissorEndereco'
         }
 
         # Adicionar certificado ao banco de dados
@@ -73,34 +53,55 @@ def test_get_certificate(test_client):
             certificate_hash='0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890',
             student_name='Maria Silva',
             issue_date=datetime.fromtimestamp(1700000000),
-            institution_address='0xInstituicaoEndereco',
+            issuer_address='0xEmissorEndereco',
             file_path='./test_storage/0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890.pdf'
         )
         db.session.add(cert)
         db.session.commit()
 
-        response = test_client.get('/get_certificate/0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890')
+        response = test_client.get('/get_certificate?certificate_hash=0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890')
 
         assert response.status_code == 200
         assert response.json['status'] == 'success'
         assert response.json['certificate']['student_name'] == 'Maria Silva'
-        assert response.json['certificate']['institution_address'] == '0xInstituicaoEndereco'
+        assert response.json['certificate']['issuer_address'] == '0xEmissorEndereco'
         assert response.json['certificate']['file_path'] == cert.file_path
 
-def test_verify_institution(test_client):
-    with patch('app.routes.verify_institution') as mock_verify:
-        # Simula um objeto de recibo com o atributo transactionHash
-        mock_receipt = Mock()
-        mock_receipt.transactionHash = b'0xmockedtransactionhash'
-        mock_verify.return_value = mock_receipt
+def test_get_certificates_by_student_name(test_client):
+    with patch('app.routes.get_certificate') as mock_get_cert:
+        # Mock para retornar dados para cada hash de certificado
+        def mock_get_certificate_side_effect(certificate_hash):
+            return {
+                'studentName': 'Maria Silva',
+                'issueDate': 1700000000,
+                'issuerAddress': '0xEmissorEndereco'
+            }
+        mock_get_cert.side_effect = mock_get_certificate_side_effect
 
-        response = test_client.post('/verify_institution', json={
-            'institution_address': '0xInstituicaoEndereco'
-        })
+        # Adicionar certificados ao banco de dados
+        cert1 = Certificate(
+            certificate_hash='0xhash1',
+            student_name='Maria Silva',
+            issue_date=datetime.fromtimestamp(1700000000),
+            issuer_address='0xEmissorEndereco',
+            file_path='./test_storage/0xhash1.pdf'
+        )
+        cert2 = Certificate(
+            certificate_hash='0xhash2',
+            student_name='Maria Silva',
+            issue_date=datetime.fromtimestamp(1700000001),
+            issuer_address='0xEmissorEndereco',
+            file_path='./test_storage/0xhash2.pdf'
+        )
+        db.session.add(cert1)
+        db.session.add(cert2)
+        db.session.commit()
+
+        response = test_client.get('/get_certificate?student_name=Maria%20Silva')
 
         assert response.status_code == 200
         assert response.json['status'] == 'success'
-        assert 'transaction_hash' in response.json
+        assert len(response.json['certificates']) == 2
 
 def test_transfer_admin(test_client):
     with patch('app.routes.transfer_admin') as mock_transfer:

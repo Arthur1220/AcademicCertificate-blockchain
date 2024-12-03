@@ -10,6 +10,7 @@ async function main() {
   // Deploy do contrato
   const academicCertificate = await AcademicCertificate.deploy();
   
+  // Aguarda o deploy ser concluído
   await academicCertificate.deployed();
 
   console.log("AcademicCertificate deployed to:", academicCertificate.address);
