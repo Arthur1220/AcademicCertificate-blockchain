@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { RouterLink, RouterView } from 'vue-router'
-
 </script>
 
 <template>
@@ -13,7 +12,6 @@ import { RouterLink, RouterView } from 'vue-router'
             </div>
         </nav>
     </div>
-
 </template>
 
 <style scoped>  
@@ -34,7 +32,6 @@ html {
 }
 
 /* Estilo da barra de navegação */
-
 .header {
     display: flex;
     justify-content: center;
@@ -53,11 +50,10 @@ html {
     background-color: #333;
     color: white;
     padding: 10px 20px;
-    width: 70%;
+    width: 100%;    /* Largura da navbar ajustada para 100% */
     border-bottom-right-radius: 10px;
     border-bottom-left-radius: 10px;
 }
-
 
 .nav-links {
     list-style: none;
