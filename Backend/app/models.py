@@ -8,7 +8,7 @@ class Certificate(db.Model):
     certificate_hash = db.Column(db.String(66), unique=True, nullable=False)  # 0x + 64 caracteres
     student_name = db.Column(db.String(255), nullable=False)
     issue_date = db.Column(db.DateTime, nullable=False)
-    institution_address = db.Column(db.String(42), nullable=False)  # Endereço Ethereum
+    issuer_address = db.Column(db.String(42), nullable=False)  # Endereço Ethereum do emissor
     file_path = db.Column(db.String(255), nullable=False)  # Caminho para o arquivo armazenado
 
     def __repr__(self):

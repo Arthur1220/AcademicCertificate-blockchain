@@ -2,7 +2,7 @@
 
 ## **Introdução**
 
-O **Academic Certificate Blockchain** é um sistema descentralizado desenvolvido em Solidity, utilizando o framework Hardhat e a biblioteca Ethers.js. Este sistema permite o registro, verificação e emissão de certificados acadêmicos por instituições educacionais de forma segura e transparente na blockchain. Além disso, oferece funcionalidades de administração para gerenciar as permissões e responsabilidades dentro do contrato inteligente.
+O **Academic Certificate Blockchain** é um sistema descentralizado desenvolvido em Solidity, utilizando o framework Hardhat e a biblioteca Ethers.js. Este sistema permite o registro, verificação e emissão de certificados acadêmicos de forma segura e transparente na blockchain. Além disso, oferece funcionalidades de administração para gerenciar as permissões e responsabilidades dentro do contrato inteligente.
 
 ## **Estrutura do Projeto**
 
@@ -13,16 +13,16 @@ Blockchain/
 ├── contracts/
 │   └── AcademicCertificate.sol
 ├── scripts/
-│   ├── deploy.js
+│   └── deploy.js
 ├── test/
-│   ├── AcademicCertificate.test.js
+│   └── AcademicCertificate.test.js
 ├── hardhat.config.js
 ├── package.json
 └── README.md
 ```
 
 ### **1. contracts/**
-- **AcademicCertificate.sol**: Contém o contrato inteligente principal que gerencia o registro de instituições, verificação de instituições, emissão de certificados e transferência de administração.
+- **AcademicCertificate.sol**: Contém o contrato inteligente principal que gerencia o registro e emissão de certificados, bem como a transferência de administração.
 
 ### **2. scripts/**
 - **deploy.js**: Script responsável por compilar e fazer o deploy do contrato inteligente na rede especificada.
@@ -31,7 +31,7 @@ Blockchain/
 - **AcademicCertificate.test.js**: Conjunto de testes automatizados utilizando o framework Hardhat com Chai para garantir que todas as funcionalidades do contrato estão funcionando conforme o esperado.
 
 ### **4. hardhat.config.js**
-Arquivo de configuração do Hardhat que define parâmetros como a versão do compilador Solidity e os plugins utilizados.
+Arquivo de configuração do Hardhat que define parâmetros como a versão do compilador Solidity, redes de blockchain a serem usadas e plugins utilizados.
 
 ### **5. package.json**
 Gerencia as dependências do projeto, scripts de execução e metadados do projeto.
@@ -40,23 +40,15 @@ Gerencia as dependências do projeto, scripts de execução e metadados do proje
 
 O contrato **AcademicCertificate** oferece as seguintes funcionalidades:
 
-1. **Registro de Instituições**
-   - Permite que instituições educacionais se registrem fornecendo informações como nome, CNPJ e responsável.
-   - Garante que uma instituição não possa se registrar mais de uma vez.
-
-2. **Verificação de Instituições**
-   - O administrador do contrato pode verificar instituições registradas.
-   - Apenas instituições verificadas podem emitir certificados.
-
-3. **Emissão de Certificados**
-   - Instituições verificadas podem emitir certificados acadêmicos únicos, identificados por um hash.
+1. **Emissão de Certificados**
+   - **Qualquer pessoa** pode emitir certificados acadêmicos únicos, identificados por um hash.
    - Evita a emissão de certificados duplicados utilizando hashes únicos.
 
-4. **Consulta de Certificados**
-   - Permite a qualquer pessoa consultar os detalhes de um certificado utilizando seu hash.
-   - Garante que apenas certificados existentes possam ser consultados.
+2. **Consulta de Certificados**
+   - Permite a qualquer pessoa consultar os detalhes de um certificado utilizando seu hash ou o nome do estudante.
+   - Retorna todos os certificados registrados para um determinado nome de estudante.
 
-5. **Administração**
+3. **Administração**
    - O administrador pode transferir suas responsabilidades para outro endereço.
    - Assegura que apenas o administrador pode executar funções administrativas.
    - Previne a transferência de administração para o endereço zero.
@@ -104,29 +96,25 @@ npx hardhat test
 **Saída Esperada:**
 
 ```
-AcademicCertificate Contract
-  Deployment
-    ✔ Deve definir o admin corretamente
-  Register Institution
-    ✔ Deve permitir que uma instituição registre-se (43ms)
-    ✔ Não deve permitir que uma instituição já registrada seja registrada novamente
-  Verify Institution
-    ✔ Deve permitir que o admin verifique uma instituição
-    ✔ Não deve permitir que não-admins verifiquem instituições
-    ✔ Não deve permitir verificar uma instituição não registrada
-  Register Certificate
-    ✔ Deve permitir que uma instituição verificada registre um certificado
-    ✔ Não deve permitir que uma instituição não verificada registre um certificado
-    ✔ Não deve permitir registrar um certificado com hash já existente
-  Get Certificate
-    ✔ Deve retornar os detalhes de um certificado existente
-    ✔ Não deve retornar detalhes para um certificado inexistente
-  Transfer Admin
-    ✔ Deve permitir que o admin transfira sua função para outro endereço
-    ✔ Não deve permitir que não-admins transfiram a função de admin
-    ✔ Não deve permitir transferir admin para o endereço zero
+  AcademicCertificate Contract
+    Deployment
+      ✔ Deve definir o admin corretamente
+    Register Certificate
+      ✔ Deve permitir que qualquer pessoa registre um certificado
+      ✔ Não deve permitir registrar um certificado com hash inválido (0x0)
+      ✔ Não deve permitir registrar um certificado com nome vazio
+      ✔ Não deve permitir registrar um certificado com data de emissão inválida (0)
+      ✔ Não deve permitir registrar o mesmo certificado duas vezes
+    Get Certificate
+      ✔ Deve retornar os detalhes de um certificado existente
+      ✔ Não deve retornar detalhes para um certificado inexistente
+    Transfer Admin
+      ✔ Deve permitir que o admin transfira sua função para outro endereço
+      ✔ Não deve permitir que não-admins transfiram a função de admin
+      ✔ Não deve permitir transferir admin para o endereço zero
 
-14 passing (3s)
+
+  11 passing (3s)
 ```
 
 ### **6. Fazer o Deploy do Contrato na Rede Local**
@@ -161,4 +149,4 @@ Para testar o contrato em uma rede local, utilize o Hardhat Network.
 
 ## **Considerações Finais**
 
-O **Academic Certificate Blockchain** oferece uma solução robusta e segura para a gestão de certificados acadêmicos, aproveitando os benefícios da tecnologia blockchain, como transparência, imutabilidade e descentralização. Com a estrutura modular e as funcionalidades implementadas, o sistema pode ser adaptado e expandido conforme as necessidades das instituições educacionais e dos usuários finais.
+O **Academic Certificate Blockchain** oferece uma solução robusta e segura para a gestão de certificados acadêmicos, aproveitando os benefícios da tecnologia blockchain, como transparência, imutabilidade e descentralização. Com a estrutura modular e as funcionalidades implementadas, o sistema pode ser adaptado e expandido conforme as necessidades dos usuários finais.
