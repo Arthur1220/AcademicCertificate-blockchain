@@ -30,75 +30,49 @@ with open(CONTRACT_ABI_PATH) as f:
 # Instanciar o contrato
 contract = w3.eth.contract(address=Web3.toChecksumAddress(CONTRACT_ADDRESS), abi=contract_abi)
 
-def register_institution(name, cnpj, responsible):
-    nonce = w3.eth.get_transaction_count(ADMIN_ADDRESS)
-    
-    txn = contract.functions.registerInstitution(name, cnpj, responsible).build_transaction({
-        'from': ADMIN_ADDRESS,
-        'nonce': nonce,
-        'gas': 300000,
-        'gasPrice': w3.toWei('20', 'gwei')
-    })
-    
-    signed_txn = w3.eth.account.sign_transaction(txn, private_key=ADMIN_PRIVATE_KEY)
-    tx_hash = w3.eth.send_raw_transaction(signed_txn.rawTransaction)
-    receipt = w3.eth.wait_for_transaction_receipt(tx_hash)
-    return receipt
+def register_certificate(certificate_hash, student_name, issue_date, issuer_private_key):
+    issuer_account = w3.eth.account.from_key(issuer_private_key)
+    issuer_address = issuer_account.address
+    nonce = w3.eth.get_transaction_count(issuer_address)
 
-def verify_institution(institution_address):
-    nonce = w3.eth.get_transaction_count(ADMIN_ADDRESS)
-    
-    txn = contract.functions.verifyInstitution(Web3.toChecksumAddress(institution_address)).buildTransaction({
-        'from': ADMIN_ADDRESS,
+    txn = contract.functions.registerCertificate(
+        certificate_hash,
+        student_name,
+        issue_date
+    ).build_transaction({
+        'from': issuer_address,
         'nonce': nonce,
         'gas': 300000,
         'gasPrice': w3.toWei('20', 'gwei')
     })
-    
-    signed_txn = w3.eth.account.sign_transaction(txn, private_key=ADMIN_PRIVATE_KEY)
-    tx_hash = w3.eth.send_raw_transaction(signed_txn.rawTransaction)
-    receipt = w3.eth.wait_for_transaction_receipt(tx_hash)
-    return receipt
 
-def register_certificate(certificate_hash, student_name, issue_date, institution_address):
-    nonce = w3.eth.get_transaction_count(institution_address)
-    
-    # Recuperar a chave privada da instituição (necessário para transações)
-    # Recomendado armazenar de forma segura
-    # Exemplo: institution_private_key = os.getenv('INSTITUTION_PRIVATE_KEY')
-    
-    institution_private_key = os.getenv('INSTITUTION_PRIVATE_KEY')  # Adicione no .env
-    
-    txn = contract.functions.registerCertificate(certificate_hash, student_name, issue_date).buildTransaction({
-        'from': institution_address,
-        'nonce': nonce,
-        'gas': 300000,
-        'gasPrice': w3.toWei('20', 'gwei')
-    })
-    
-    signed_txn = w3.eth.account.sign_transaction(txn, private_key=institution_private_key)
+    signed_txn = w3.eth.account.sign_transaction(txn, private_key=issuer_private_key)
     tx_hash = w3.eth.send_raw_transaction(signed_txn.rawTransaction)
     receipt = w3.eth.wait_for_transaction_receipt(tx_hash)
-    return receipt
+    return receipt, issuer_address
 
 def get_certificate(certificate_hash):
-    cert = contract.functions.getCertificate(certificate_hash).call()
-    return {
-        'studentName': cert[0],
-        'issueDate': cert[1],
-        'institutionAddress': cert[2]
-    }
+    try:
+        cert = contract.functions.getCertificate(certificate_hash).call()
+        return {
+            'studentName': cert[0],
+            'issueDate': cert[1],
+            'issuerAddress': cert[2]
+        }
+    except Exception as e:
+        # Certificado não encontrado
+        return None
 
 def transfer_admin(new_admin_address):
     nonce = w3.eth.get_transaction_count(ADMIN_ADDRESS)
-    
-    txn = contract.functions.transferAdmin(Web3.toChecksumAddress(new_admin_address)).buildTransaction({
+
+    txn = contract.functions.transferAdmin(Web3.toChecksumAddress(new_admin_address)).build_transaction({
         'from': ADMIN_ADDRESS,
         'nonce': nonce,
         'gas': 300000,
         'gasPrice': w3.toWei('20', 'gwei')
     })
-    
+
     signed_txn = w3.eth.account.sign_transaction(txn, private_key=ADMIN_PRIVATE_KEY)
     tx_hash = w3.eth.send_raw_transaction(signed_txn.rawTransaction)
     receipt = w3.eth.wait_for_transaction_receipt(tx_hash)

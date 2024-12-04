@@ -6,14 +6,14 @@ Este repositório contém o **componente backend** do projeto Blockchain de Cert
 
 ## Funcionalidades
 
-- **Registro de Certificados**: Instituições podem registrar novos certificados na blockchain.
+- **Registro de Certificados**: **Qualquer pessoa** pode registrar novos certificados na blockchain.
 - **Verificação de Certificados**: Usuários podem verificar a autenticidade de um certificado.
-- **Registro de Instituições**: Novas instituições podem ser registradas e verificadas.
+- **Busca de Certificados**: É possível buscar certificados pelo hash específico ou pelo nome do estudante, retornando todos os certificados registrados com aquele nome.
 - **Gerenciamento de Administradores**: O administrador pode transferir privilégios de administração para outro endereço.
 
 ## Arquitetura
 
-O backend serve como intermediário entre a aplicação frontend e a blockchain. Ele expõe endpoints de API RESTful que o frontend pode consumir para realizar ações como registrar certificados, verificar instituições e buscar detalhes de certificados.
+O backend serve como intermediário entre a aplicação frontend e a blockchain. Ele expõe endpoints de API RESTful que o frontend pode consumir para realizar ações como registrar certificados e buscar detalhes de certificados.
 
 O backend se comunica com a blockchain Ethereum usando o **Web3.py**. Funções de contratos inteligentes são chamadas para interagir com a blockchain, garantindo que todos os dados de certificados sejam armazenados com segurança e de forma imutável.
 
@@ -30,7 +30,7 @@ O backend se comunica com a blockchain Ethereum usando o **Web3.py**. Funções 
 ### Clonar o Repositório
 
 ```bash
-git clone https://github.com/seuusuario/CertificateBlockchain.git
+git clone https://github.com/Arthur1220/AcademicCertificate-blockchain
 cd CertificateBlockchain/Backend
 ```
 
@@ -84,64 +84,22 @@ A aplicação será iniciada em `http://localhost:5000`.
 
 ## Endpoints da API
 
-### 1. Registrar Instituição
-
-- **Endpoint:** `/register_institution`
-- **Método:** `POST`
-- **Descrição:** Registra uma nova instituição na blockchain.
-- **Corpo da Requisição (JSON):**
-
-  ```json
-  {
-    "name": "Nome da Instituição",
-    "cnpj": "12.345.678/0001-90",
-    "responsible": "Pessoa Responsável"
-  }
-  ```
-
-- **Resposta:**
-
-  ```json
-  {
-    "status": "success",
-    "transaction_hash": "0xTransactionHash"
-  }
-  ```
-
-### 2. Verificar Instituição
-
-- **Endpoint:** `/verify_institution`
-- **Método:** `POST`
-- **Descrição:** Verifica uma instituição (apenas admin).
-- **Corpo da Requisição (JSON):**
-
-  ```json
-  {
-    "institution_address": "0xEnderecoDaInstituicao"
-  }
-  ```
-
-- **Resposta:**
-
-  ```json
-  {
-    "status": "success",
-    "transaction_hash": "0xTransactionHash"
-  }
-  ```
-
-### 3. Registrar Certificado
+### 1. Registrar Certificado
 
 - **Endpoint:** `/register_certificate`
 - **Método:** `POST`
-- **Descrição:** Registra um novo certificado.
+- **Descrição:** Registra um novo certificado na blockchain.
 - **Corpo da Requisição (Form Data):**
 
   - `certificate_hash`: O hash do certificado.
   - `student_name`: Nome do estudante.
   - `issue_date`: Data de emissão em formato timestamp.
-  - `institution_address`: Endereço Ethereum da instituição.
+  - `issuer_private_key`: Chave privada do emissor (necessária para assinar a transação).
   - `file`: O arquivo do certificado (PDF ou imagem).
+
+- **Exemplo de Requisição:**
+
+  O arquivo e os dados devem ser enviados como `multipart/form-data`.
 
 - **Resposta:**
 
@@ -153,12 +111,33 @@ A aplicação será iniciada em `http://localhost:5000`.
   }
   ```
 
-### 4. Obter Certificado
+### 2. Obter Certificado
 
-- **Endpoint:** `/get_certificate/<certificate_hash>`
+- **Endpoint:** `/get_certificate`
 - **Método:** `GET`
-- **Descrição:** Recupera os detalhes de um certificado.
-- **Resposta:**
+- **Descrição:** Recupera os detalhes de um certificado. Pode buscar por `certificate_hash` ou `student_name` como parâmetros de consulta.
+- **Parâmetros de Consulta:**
+
+  - `certificate_hash` (opcional): O hash do certificado.
+  - `student_name` (opcional): Nome do estudante.
+
+  **Nota:** É necessário fornecer pelo menos um dos parâmetros.
+
+- **Exemplo de Requisição:**
+
+  - Por `certificate_hash`:
+
+    ```
+    GET /get_certificate?certificate_hash=0xSeuCertificateHash
+    ```
+
+  - Por `student_name`:
+
+    ```
+    GET /get_certificate?student_name=Nome%20do%20Estudante
+    ```
+
+- **Resposta ao Buscar por `certificate_hash`:**
 
   ```json
   {
@@ -166,13 +145,35 @@ A aplicação será iniciada em `http://localhost:5000`.
     "certificate": {
       "student_name": "Nome do Estudante",
       "issue_date": 1700000000,
-      "institution_address": "0xEnderecoDaInstituicao",
+      "issuer_address": "0xEnderecoDoEmissor",
       "file_path": "/caminho/para/arquivo/armazenado"
     }
   }
   ```
 
-### 5. Transferir Admin
+- **Resposta ao Buscar por `student_name`:**
+
+  ```json
+  {
+    "status": "success",
+    "certificates": [
+      {
+        "student_name": "Nome do Estudante",
+        "issue_date": 1700000000,
+        "issuer_address": "0xEnderecoDoEmissor",
+        "file_path": "/caminho/para/arquivo/armazenado"
+      },
+      {
+        "student_name": "Nome do Estudante",
+        "issue_date": 1700001000,
+        "issuer_address": "0xOutroEnderecoDoEmissor",
+        "file_path": "/caminho/para/arquivo/armazenado2"
+      }
+    ]
+  }
+  ```
+
+### 3. Transferir Admin
 
 - **Endpoint:** `/transfer_admin`
 - **Método:** `POST`
@@ -196,8 +197,35 @@ A aplicação será iniciada em `http://localhost:5000`.
 
 ## Conectando ao Frontend (Vue.js)
 
-Para conectar o backend com um frontend em Vue.js, você pode seguir estes passos apos criar o projeto e fazer a configuração base do Axios:
+Para conectar o backend com um frontend em Vue.js, você pode seguir estes passos após criar o projeto e fazer a configuração base do Axios:
 
+### 1. Configurar o Projeto Frontend
+
+```bash
+vue create frontend
+cd frontend
+```
+
+### 2. Instalar o Axios
+
+```bash
+npm install axios
+```
+
+### 3. Configurar o Axios
+
+Crie uma instância do Axios apontando para a API do backend:
+
+```javascript
+// src/api/axios.js
+import axios from 'axios';
+
+const api = axios.create({
+  baseURL: 'http://localhost:5000',
+});
+
+export default api;
+```
 
 ### 4. Consumir os Endpoints da API
 
@@ -219,7 +247,7 @@ export default {
         certificate_hash: '',
         student_name: '',
         issue_date: '',
-        institution_address: '',
+        issuer_private_key: '',
         file: null,
       },
     };
@@ -230,7 +258,7 @@ export default {
       formData.append('certificate_hash', this.certificateData.certificate_hash);
       formData.append('student_name', this.certificateData.student_name);
       formData.append('issue_date', this.certificateData.issue_date);
-      formData.append('institution_address', this.certificateData.institution_address);
+      formData.append('issuer_private_key', this.certificateData.issuer_private_key);
       formData.append('file', this.certificateData.file);
 
       try {
