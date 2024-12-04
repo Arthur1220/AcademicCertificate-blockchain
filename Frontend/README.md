@@ -1,1 +1,0 @@
-Frontend a ser desenvolvido em Vue

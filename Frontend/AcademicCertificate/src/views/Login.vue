@@ -2,7 +2,7 @@
   <div class="main">
     <div class="container">
       <h1>Login</h1>
-      <button @click="connectWallet">{{ isConnected ? `Conectado: ${shortAddress}` : 'Conectar MetaMask' }}</button>
+      <button @click="connectWallet">{{ isConnected ? `Conectando...` : 'Conectar MetaMask' }}</button>
       <p v-if="error" style="color: red;">Erro: {{ error }}</p>
     </div>
   </div>
@@ -26,10 +26,10 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    height: 500px;
-    width: 500px;
+    height: 350px;
+    width: 400px;
     background-color: #333;
-    margin-top: 200px;
+    margin-top: 300px;
     border-radius: 10px;
   }
 
@@ -84,6 +84,7 @@
 <script>
   import { ref } from 'vue'
   import { ethers } from 'ethers'
+  import { useRouter } from 'vue-router';
   
   export default {
     name: 'ConnectWallet',
@@ -91,6 +92,7 @@
       const isConnected = ref(false)
       const account = ref('')
       const shortAddress = ref('')
+      const router = useRouter();
   
       const connectWallet = async () => {
         if (window.ethereum) {
@@ -101,7 +103,9 @@
             shortAddress.value = `${account.value.slice(0, 6)}...${account.value.slice(-4)}`
             isConnected.value = true
             localStorage.setItem('chave', account.value);
-            router.push({name: "UploadCertificate"});
+            setTimeout(() => {
+              router.push({ name: 'UploadCertificate' });
+            }, 2000);
   
             // Ouvir mudanças na conta
             window.ethereum.on('accountsChanged', (accounts) => {
