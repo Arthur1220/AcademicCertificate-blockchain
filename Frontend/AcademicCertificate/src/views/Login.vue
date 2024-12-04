@@ -102,7 +102,7 @@
             account.value = accounts[0]
             shortAddress.value = `${account.value.slice(0, 6)}...${account.value.slice(-4)}`
             isConnected.value = true
-            localStorage.setItem('chave', account.value);
+            localStorage.setItem('chave', shortAddress.value);
             setTimeout(() => {
               router.push({ name: 'UploadCertificate' });
             }, 2000);

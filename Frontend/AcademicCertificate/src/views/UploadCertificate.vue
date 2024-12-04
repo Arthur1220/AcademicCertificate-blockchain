@@ -38,47 +38,57 @@
   </template>
   
   <script>
-  // Importando o componente Navbar com o caminho relativo
-  import Navbar from '../components/NavBar.vue';
-  
-  export default {
-    components: {
-      Navbar
+import Navbar from '../components/NavBar.vue';
+import axios from 'axios';
+import { ethers } from 'ethers';
+
+export default {
+  components: {
+    Navbar
+  },
+  data() {
+    return {
+      certificateHash: '',
+      studentName: '',
+      issueDate: '',
+      file: null,
+    };
+  },
+  methods: {
+    async signMessage(message) {
+      try {
+        const provider = new ethers.BrowserProvider(window.ethereum);
+        const signer = await provider.getSigner();
+        const signature = await signer.signMessage(message);
+        return signature;
+      } catch (error) {
+        console.error('Erro ao assinar a mensagem:', error);
+        throw error;
+      }
     },
-    data() {
-      return {
-        certificateHash: '',
-        studentName: '',
-        issueDate: '',
-        institutionAddress: '',
-        file: null
-      };
+    handleFileChange(event) {
+      this.file = event.target.files[0];
     },
-    methods: {
-      handleFileChange(event) {
-        this.file = event.target.files[0];
-      },
-      submitForm() {
-        // Aqui você pode fazer a chamada ao backend para enviar os dados
+    async submitForm() {
+      try {
+        const signature = await this.signMessage(this.certificateHash);
+
         const formData = new FormData();
         formData.append('certificate_hash', this.certificateHash);
         formData.append('student_name', this.studentName);
-        formData.append('issue_date', this.issueDate);
-        formData.append('institution_address', localStorage.getItem('chave'));
+        formData.append('issue_date', Math.floor(new Date(this.issueDate).getTime() / 1000));
+        formData.append('signature', signature);
         formData.append('file', this.file);
-  
-        // Exemplo de requisição usando axios
-        axios.post('/api/upload', formData)
-           .then(response => {
-             console.log('Certificado enviado com sucesso', response);
-           })
-           .catch(error => {
-             console.error('Erro ao enviar certificado', error);
-           });
+
+        const response = await axios.post('http://127.0.0.1:5000/register_certificate', formData);
+        console.log('Certificado enviado com sucesso', response.data);
+      } catch (error) {
+        console.error('Erro ao enviar certificado', error);
       }
     }
-  };
-  </script>
+  }
+};
+</script>
   
   <style scoped>
   /* Estilos para o layout e formulário */
