@@ -2,7 +2,7 @@
     <div class="certificate-upload">
       <header class="header">
         <div class="header-content">
-          <h1>Area do aluno</h1>
+          <h1>Área do aluno</h1>
           <div class="user-info">
             <span>Nome do aluno</span>
             <span>Sair</span>

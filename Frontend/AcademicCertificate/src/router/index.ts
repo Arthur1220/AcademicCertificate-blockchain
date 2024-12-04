@@ -14,6 +14,11 @@ const router = createRouter({
       name: 'cadastro',
       component: () => import('../views/Cadastro.vue'),
     },
+    {
+      path: '/aluno',
+      name: 'aluno',
+      component: () => import('../views/AlunoCertificado.vue'),
+    },
   ],
 })
 
