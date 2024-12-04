@@ -2,13 +2,7 @@
   <div class="main">
     <div class="container">
       <h1>Login</h1>
-      <input
-        id="input-text"
-        v-model="address"
-        type="text"
-        placeholder="Insira o endereço da carteira"
-      />
-      <button @click="fetchBalance">Acessar sua conta</button>
+      <button @click="connectWallet">{{ isConnected ? `Conectado: ${shortAddress}` : 'Conectar MetaMask' }}</button>
       <p v-if="error" style="color: red;">Erro: {{ error }}</p>
     </div>
   </div>
@@ -45,6 +39,7 @@
     margin-top: 50px;
     color: white;
     font-size: 3rem;
+    margin-bottom: 100px;
   }
 
   .container input {
@@ -86,43 +81,52 @@
 
 </style>
 
-<script lang="ts">
-import { defineComponent } from "vue";
-import { JsonRpcProvider, isAddress, formatEther } from "ethers";
-import router from "@/router";
-
-export default defineComponent({
-  name: "WalletBalance",
-  data() {
-    return {
-      address: "", // Armazena o endereço da carteira inserido pelo usuário
-      balance: null as string | null, // Armazena o saldo da carteira
-      error: null as string | null, // Armazena mensagens de erro
-    };
-  },
-  methods: {
-    async fetchBalance() {
-      const provider = new JsonRpcProvider("https://mainnet.infura.io/v3/c3c237f677734889a07124571f56d377");
-
-      try {
-        // Valida o endereço inserido pelo usuário
-        if (!isAddress(this.address)) {
-          throw new Error("Endereço inválido.");
+<script>
+  import { ref } from 'vue'
+  import { ethers } from 'ethers'
+  
+  export default {
+    name: 'ConnectWallet',
+    setup() {
+      const isConnected = ref(false)
+      const account = ref('')
+      const shortAddress = ref('')
+  
+      const connectWallet = async () => {
+        if (window.ethereum) {
+          try {
+            const provider = new ethers.BrowserProvider(window.ethereum)
+            const accounts = await provider.send('eth_requestAccounts', [])
+            account.value = accounts[0]
+            shortAddress.value = `${account.value.slice(0, 6)}...${account.value.slice(-4)}`
+            isConnected.value = true
+            localStorage.setItem('chave', account.value);
+            router.push({name: "UploadCertificate"});
+  
+            // Ouvir mudanças na conta
+            window.ethereum.on('accountsChanged', (accounts) => {
+              if (accounts.length > 0) {
+                account.value = accounts[0]
+                shortAddress.value = `${account.value.slice(0, 6)}...${account.value.slice(-4)}`
+              } else {
+                isConnected.value = false
+                account.value = ''
+                shortAddress.value = ''
+              }
+            })
+          } catch (error) {
+            console.error('Erro ao conectar MetaMask:', error)
+          }
+        } else {
+          alert('Por favor, instale o MetaMask!')
         }
-
-        // Obtem o saldo em Wei e converte para Ether
-        const balanceWei = await provider.getBalance(this.address);
-        this.balance = formatEther(balanceWei);
-        this.error = null; // Limpa mensagens de erro
-
-        if (this.balance) {
-          router.push("/");
-        }
-      } catch (err) {
-        this.error = (err as Error).message; // Exibe a mensagem de erro
-        this.balance = null; // Limpa o saldo
       }
-    },
-  },
-});
-</script>
+  
+      return {
+        isConnected,
+        connectWallet,
+        shortAddress
+      }
+    }
+  }
+  </script>
