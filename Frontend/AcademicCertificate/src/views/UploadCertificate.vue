@@ -68,13 +68,7 @@
 
 <script>
 import Navbar from "../components/NavBar.vue";
-import { ref } from "vue";
-import {
-  connectWallet,
-  initContract,
-  getSigner,
-  getContract,
-} from "../services/blockchain";
+import { ref, onMounted, markRaw } from "vue";
 import { contractABI, contractAddress } from "../config";
 import { ethers } from "ethers";
 
@@ -83,6 +77,7 @@ export default {
     Navbar,
   },
   setup() {
+    // Estados reativos para o formulário e mensagens de feedback
     const certificateCode = ref("");
     const studentName = ref("");
     const issueDate = ref("");
@@ -91,41 +86,55 @@ export default {
     const successMessage = ref("");
     const errorMessage = ref("");
 
-    const signer = ref(null);
-    const contract = ref(null);
+    // Variáveis para armazenar objetos do ethers.js
+    let provider = null;
+    let signer = null;
+    let contract = null;
 
+    // Função para lidar com a mudança de arquivo
     const handleFileChange = (event) => {
       file.value = event.target.files[0];
     };
 
+    // Função para inicializar a conexão com a blockchain
     const initBlockchainConnection = async () => {
       try {
-        await connectWallet();
-        signer.value = getSigner();
-        await initContract(contractAddress, contractABI);
-        contract.value = getContract();
+        if (!window.ethereum) {
+          throw new Error("MetaMask não está instalado. Por favor, instale o MetaMask.");
+        }
+
+        // Solicitar ao usuário para conectar a carteira
+        await window.ethereum.request({ method: "eth_requestAccounts" });
+
+        // Criar uma instância do provider e marcar como raw para evitar reatividade
+        provider = markRaw(new ethers.providers.Web3Provider(window.ethereum));
+
+        // Obter o signer a partir do provider e marcar como raw
+        signer = markRaw(provider.getSigner());
+
+        // Inicializar o contrato inteligente e marcar como raw
+        contract = markRaw(new ethers.Contract(contractAddress, contractABI, signer));
+
         console.log("Blockchain conectado com sucesso.");
       } catch (error) {
         console.error("Erro ao inicializar blockchain:", error);
-        errorMessage.value = "Erro ao conectar à blockchain.";
+        errorMessage.value = error.message || "Erro ao conectar à blockchain.";
       }
     };
 
-    // Inicializa a conexão com a blockchain quando o componente é montado
-    initBlockchainConnection();
+    // Inicializar a conexão quando o componente for montado
+    onMounted(() => {
+      initBlockchainConnection();
+    });
 
+    // Função para enviar o formulário
     const submitForm = async () => {
       // Resetar mensagens de feedback
       successMessage.value = "";
       errorMessage.value = "";
 
       // Validação dos campos do formulário
-      if (
-        !certificateCode.value ||
-        !studentName.value ||
-        !issueDate.value ||
-        !file.value
-      ) {
+      if (!certificateCode.value || !studentName.value || !issueDate.value || !file.value) {
         errorMessage.value = "Todos os campos são obrigatórios.";
         return;
       }
@@ -154,24 +163,26 @@ export default {
       try {
         loading.value = true;
 
-        if (!signer.value || !contract.value) {
+        if (!signer || !contract) {
           throw new Error("Erro ao conectar à blockchain.");
         }
 
-        // Converter o código do certificado para bytes32
-        const certificateHash = ethers.utils.formatBytes32String(
-          certificateCode.value
-        );
+        // Converter o código do certificado para um hash (keccak256)
+        const certificateHash = ethers.utils.keccak256(ethers.utils.toUtf8Bytes(certificateCode.value));
 
         // Converter a data de emissão para timestamp UNIX (em segundos)
         const issueTimestamp = Math.floor(selectedDate.getTime() / 1000);
 
+        // Obter o preço do gas diretamente do provider
+        const gasPrice = await provider.getGasPrice();
+        console.log("GasPrice calculado:", gasPrice.toString());
+
         // Chamar a função registerCertificate do contrato inteligente
-        const transaction = await contract.value.registerCertificate(
+        const transaction = await contract.registerCertificate(
           certificateHash,
           studentName.value,
           issueTimestamp,
-          { gasLimit: 1000000 }
+          { gasLimit: 300000, gasPrice } // Limite ajustado para 300k gas
         );
 
         successMessage.value = "Transação enviada. Aguardando confirmação...";
@@ -181,8 +192,7 @@ export default {
         const receipt = await transaction.wait();
 
         if (receipt.status === 1) {
-          successMessage.value =
-            "Certificado registrado com sucesso na blockchain!";
+          successMessage.value = "Certificado registrado com sucesso na blockchain!";
           // Limpar os campos do formulário
           certificateCode.value = "";
           studentName.value = "";
@@ -193,7 +203,13 @@ export default {
         }
       } catch (error) {
         console.error("Erro ao registrar certificado:", error);
-        errorMessage.value = error.message || "Erro ao enviar certificado.";
+        if (error.code === "UNPREDICTABLE_GAS_LIMIT") {
+          errorMessage.value = "Limite de gas imprevisível. Tente novamente.";
+        } else if (error.code === 4001) { // Erro de rejeição pelo usuário
+          errorMessage.value = "Transação rejeitada pelo usuário.";
+        } else {
+          errorMessage.value = error.message || "Erro ao enviar certificado.";
+        }
       } finally {
         loading.value = false;
       }
