@@ -5,6 +5,7 @@ from .storage import save_file, allowed_file
 from .models import Certificate
 from .extensions import db
 from datetime import datetime
+from .utils import verify_signature
 
 main = Blueprint('main', __name__)
 
@@ -26,6 +27,11 @@ def register_certificate_route():
     # Verificar se todos os dados necessários estão presentes
     if not all([certificate_code, student_name, issue_date, signature, user_address, transaction_hash, file]):
         return jsonify({'status': 'error', 'message': 'Dados incompletos.'}), 400
+
+    # Verificar a assinatura
+    message = encode_defunct(text=certificate_hash)
+    if not verify_signature(user_address, message, signature):
+        return jsonify({'status': 'error', 'message': 'Assinatura inválida.'}), 400
 
     # Verificar se o arquivo possui uma extensão permitida
     if not allowed_file(file.filename):
