@@ -10,12 +10,12 @@
       <!-- Formulário de Upload -->
       <form @submit.prevent="submitForm" class="upload-form">
         <div class="form-group">
-          <label for="certificate_hash">Hash do Certificado</label>
+          <label for="certificate_code">Código do Certificado</label>
           <input
             type="text"
-            id="certificate_hash"
-            v-model="certificateHash"
-            placeholder="Hash do certificado"
+            id="certificate_code"
+            v-model="certificateCode"
+            placeholder="Código do Certificado"
             required
           />
         </div>
@@ -68,141 +68,101 @@
 
 <script>
 import Navbar from "../components/NavBar.vue";
-import { mapActions, mapGetters } from 'vuex';
+import { ref } from "vue";
+import { ethers } from "ethers";
+import axios from "axios";
 
 export default {
   components: {
     Navbar,
   },
-  data() {
-    return {
-      certificateHash: "",
-      studentName: "",
-      issueDate: "",
-      file: null,
+  setup() {
+    const certificateCode = ref("");
+    const studentName = ref("");
+    const issueDate = ref("");
+    const file = ref(null);
+    const loading = ref(false);
+    const successMessage = ref("");
+    const errorMessage = ref("");
+
+    const handleFileChange = (event) => {
+      file.value = event.target.files[0];
     };
-  },
-  computed: {
-    ...mapGetters(['isLoading', 'getSuccessMessage', 'getErrorMessage']),
-    loading() {
-      return this.isLoading;
-    },
-    successMessage() {
-      return this.getSuccessMessage;
-    },
-    errorMessage() {
-      return this.getErrorMessage;
-    },
-  },
-  methods: {
-    ...mapActions(['registerCertificate']),
-    handleFileChange(event) {
-      this.file = event.target.files[0];
-    },
-    async submitForm() {
-      // Validações no Frontend
-      if (!this.certificateHash || !this.studentName || !this.issueDate || !this.file) {
-        this.$store.commit('setErrorMessage', 'Todos os campos são obrigatórios.');
-        return;
-      }
 
-      // Verificar se o hash está no formato correto (ajuste conforme necessário)
-      const hashPattern = /^[0-9a-fA-F]{64}$/;
-      if (!hashPattern.test(this.certificateHash)) {
-        this.$store.commit('setErrorMessage', 'Hash do certificado inválido.');
-        return;
-      }
-
-      // Verificar se a data de emissão não está no futuro
-      const selectedDate = new Date(this.issueDate);
-      const currentDate = new Date();
-      if (selectedDate > currentDate) {
-        this.$store.commit('setErrorMessage', 'Data de emissão não pode estar no futuro.');
-        return;
-      }
-
-      // Verificar o tipo e tamanho do arquivo (por exemplo, máximo de 5MB)
-      const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png'];
-      if (!allowedTypes.includes(this.file.type)) {
-        this.$store.commit('setErrorMessage', 'Tipos de arquivo permitidos: PDF, JPEG, PNG.');
-        return;
-      }
-
-      const maxSize = 5 * 1024 * 1024; // 5MB
-      if (this.file.size > maxSize) {
-        this.$store.commit('setErrorMessage', 'O tamanho do arquivo excede 5MB.');
+    const submitForm = async () => {
+      if (!certificateCode.value || !studentName.value || !issueDate.value || !file.value) {
+        errorMessage.value = "Todos os campos são obrigatórios.";
         return;
       }
 
       try {
-        // Iniciar o processo de envio
-        this.$store.commit('setLoading', true);
-        this.$store.commit('clearMessages');
+        loading.value = true;
+        successMessage.value = "";
+        errorMessage.value = "";
 
-        const signer = this.$store.getters.getSigner;
-        const contract = this.$store.getters.getContract;
-
-        if (!signer || !contract) {
-          this.$store.commit('setErrorMessage', 'Carteira não conectada ou contrato não inicializado.');
-          this.$store.commit('setLoading', false);
-          return;
-        }
+        // Configurar provider e signer para blockchain
+        const provider = new ethers.BrowserProvider(window.ethereum);
+        const signer = await provider.getSigner();
 
         // Assinar o hash do certificado
-        const signature = await signer.signMessage(this.certificateHash);
+        const signature = await signer.signMessage(certificateCode.value);
 
-        // Interagir com o smart contract para registrar o certificado na blockchain
+        // Interagir com o contrato inteligente
+        const contractAddress = "SEU_ENDEREÇO_DO_CONTRATO";
+        const contractABI = []; // Insira a ABI do seu contrato
+        const contract = new ethers.Contract(contractAddress, contractABI, signer);
+
         const transaction = await contract.registerCertificate(
-          this.certificateHash,
-          this.studentName,
-          Math.floor(new Date(this.issueDate).getTime() / 1000),
+          certificateCode.value,
+          studentName.value,
+          Math.floor(new Date(issueDate.value).getTime() / 1000),
           await signer.getAddress()
         );
 
-        // Informar ao usuário que a transação está sendo confirmada
-        this.$store.commit('setSuccessMessage', 'Transação enviada. Aguardando confirmação...');
+        successMessage.value = "Transação enviada. Aguardando confirmação...";
+        await transaction.wait();
 
-        // Aguardar a confirmação da transação
-        const receipt = await transaction.wait();
+        // Preparar os dados para o backend
+        const formData = new FormData();
+        formData.append("certificate_code", certificateCode.value);
+        formData.append("student_name", studentName.value);
+        formData.append("issue_date", Math.floor(new Date(issueDate.value).getTime() / 1000));
+        formData.append("signature", signature);
+        formData.append("user_address", await signer.getAddress());
+        formData.append("transaction_hash", transaction.hash);
+        formData.append("file", file.value);
 
-        if (receipt.status === 1) {
-          // Transação bem-sucedida
-          this.$store.commit('setSuccessMessage', 'Certificado registrado na blockchain com sucesso!');
+        // Enviar para o backend
+        const response = await axios.post("http://127.0.0.1:5000/register_certificate", formData);
 
-          // Preparar os dados para enviar ao backend
-          const formData = new FormData();
-          formData.append("certificate_hash", this.certificateHash);
-          formData.append("student_name", this.studentName);
-          formData.append("issue_date", Math.floor(new Date(this.issueDate).getTime() / 1000));
-          formData.append("signature", signature);
-          formData.append("user_address", await signer.getAddress());
-          formData.append("transaction_hash", transaction.hash);
-          formData.append("file", this.file);
-
-          // Enviar os dados para o backend
-          const response = await this.registerCertificate(formData);
-
-          if (response.status === 'success') {
-            this.$store.commit('setSuccessMessage', 'Certificado registrado com sucesso na blockchain e no banco de dados!');
-            // Resetar o formulário
-            this.certificateHash = '';
-            this.studentName = '';
-            this.issueDate = '';
-            this.file = null;
-          } else {
-            this.$store.commit('setErrorMessage', response.message || 'Erro ao registrar certificado no backend.');
-          }
+        if (response.data.status === "success") {
+          successMessage.value = "Certificado registrado com sucesso!";
+          certificateCode.value = "";
+          studentName.value = "";
+          issueDate.value = "";
+          file.value = null;
         } else {
-          // Transação falhou
-          this.$store.commit('setErrorMessage', 'Transação falhou na blockchain.');
+          throw new Error(response.data.message || "Erro ao registrar certificado.");
         }
       } catch (error) {
-        console.error("Erro ao enviar certificado", error);
-        this.$store.commit('setErrorMessage', 'Ocorreu um erro ao enviar o certificado.');
+        console.error(error);
+        errorMessage.value = error.message || "Erro ao enviar certificado.";
       } finally {
-        this.$store.commit('setLoading', false);
+        loading.value = false;
       }
-    },
+    };
+
+    return {
+      certificateCode,
+      studentName,
+      issueDate,
+      file,
+      loading,
+      successMessage,
+      errorMessage,
+      handleFileChange,
+      submitForm,
+    };
   },
 };
 </script>
