@@ -1,14 +1,6 @@
 <template>
     <div class="certificate-upload">
-      <header class="header">
-        <div class="header-content">
-          <h1>Área do aluno</h1>
-          <div class="user-info">
-            <span>Nome do aluno</span>
-            <span>Sair</span>
-          </div>
-        </div>
-      </header>
+      
   
       <main class="main-content">
         <h2 class="title">Certifique seus documentos academicos aqui</h2>
@@ -63,24 +55,6 @@
     background-color: #f5f5f5;
   }
   
-  .header {
-    background-color: #1a1a1a;
-    color: white;
-    padding: 1rem 2rem;
-  }
-  
-  .header-content {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    max-width: 1200px;
-    margin: 0 auto;
-  }
-  
-  .header h1 {
-    margin: 0;
-    font-size: 1.2rem;
-  }
   
   .user-info {
     display: flex;
@@ -94,6 +68,7 @@
   }
   
   .title {
+    margin-top: 200px;
     text-align: center;
     margin-bottom: 3rem;
     font-size: 1.5rem;
