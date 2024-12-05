@@ -152,13 +152,14 @@ export default {
       if (window.ethereum) {
         try {
           loading.value = true;
-          const provider = new ethers.BrowserProvider(window.ethereum);
+          // Use Web3Provider em vez de BrowserProvider
+          const provider = new ethers.providers.Web3Provider(window.ethereum);
           const accounts = await provider.send('eth_requestAccounts', []);
           account.value = accounts[0];
           shortAddress.value = `${account.value.slice(0, 6)}...${account.value.slice(-4)}`;
           isConnected.value = true;
           localStorage.setItem('address', account.value); // Armazena o endereço completo
-          
+
           setTimeout(() => {
             router.push({ name: 'UploadCertificate' });
           }, 1500);
