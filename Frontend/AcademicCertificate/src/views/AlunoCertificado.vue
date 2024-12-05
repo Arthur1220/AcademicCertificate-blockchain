@@ -33,17 +33,10 @@
         }
       }
     },
-    methods: {
-      handleCertificateClick(type) {
-        if (type === 'certificado') {
-          this.$refs.certificadoInput.click()
-        }
-      },
-      handleFileUpload(type, event) {
-        const file = event.target.files[0]
-        if (file) {
-          this.certificateStatus[type] = true
-        }
+    handleFileUpload(type, event) {
+      const file = event.target.files[0]
+      if (file) {
+        this.certificateStatus[type] = true
       }
     }
   }

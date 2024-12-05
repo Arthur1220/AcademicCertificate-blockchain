@@ -97,8 +97,6 @@ export default {
 
       try {
         loading.value = true;
-        successMessage.value = "";
-        errorMessage.value = "";
 
         // Configurar provider e signer para blockchain
         const provider = new ethers.BrowserProvider(window.ethereum);
@@ -145,7 +143,7 @@ export default {
           throw new Error(response.data.message || "Erro ao registrar certificado.");
         }
       } catch (error) {
-        console.error(error);
+        console.error("Erro ao registrar certificado:", error);
         errorMessage.value = error.message || "Erro ao enviar certificado.";
       } finally {
         loading.value = false;
