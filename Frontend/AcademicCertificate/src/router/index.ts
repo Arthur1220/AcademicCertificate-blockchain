@@ -20,6 +20,11 @@ const router = createRouter({
       name: 'UploadCertificate',
       component: () => import('../views/UploadCertificate.vue'),
     },
+    {
+      path: '/aluno',
+      name: 'aluno',
+      component: () => import('../views/AlunoCertificado.vue'),
+    },
   ],
 })
 
