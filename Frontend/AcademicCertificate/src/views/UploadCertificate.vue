@@ -3,11 +3,11 @@
     <!-- Navbar -->
     <Navbar />
 
-    <!-- Conteúdo Principal -->
+    <!-- Main Content -->
     <div class="container">
       <h1>Carregue Seus Certificados Aqui!</h1>
 
-      <!-- Formulário de Upload -->
+      <!-- Upload Form -->
       <form @submit.prevent="submitForm" class="upload-form">
         <div class="form-group">
           <label for="certificate_code">Código do Certificado</label>
@@ -59,7 +59,7 @@
         </div>
       </form>
 
-      <!-- Mensagens de Feedback -->
+      <!-- Feedback Messages -->
       <p v-if="successMessage" class="success-message">{{ successMessage }}</p>
       <p v-if="errorMessage" class="error-message">{{ errorMessage }}</p>
     </div>
@@ -69,8 +69,13 @@
 <script>
 import Navbar from "../components/NavBar.vue";
 import { ref } from "vue";
-import { ethers } from "ethers";
-import axios from "axios";
+import {
+  connectWallet,
+  initContract,
+  getSigner,
+  getContract,
+} from "../services/blockchain";
+import api from "../services/api";
 
 export default {
   components: {
@@ -85,13 +90,59 @@ export default {
     const successMessage = ref("");
     const errorMessage = ref("");
 
+    const signer = ref(null);
+    const contract = ref(null);
+
     const handleFileChange = (event) => {
       file.value = event.target.files[0];
     };
 
+    const initBlockchain = async () => {
+      try {
+        await connectWallet();
+        signer.value = getSigner();
+        const contractAddress = "SEU_ENDEREÇO_DO_CONTRATO"; // Substitua pelo endereço do seu contrato
+        const contractABI = [/* Insira aqui a ABI do seu contrato */];
+        await initContract(contractAddress, contractABI);
+        contract.value = getContract();
+      } catch (error) {
+        console.error("Erro ao inicializar blockchain:", error);
+        errorMessage.value = "Erro ao conectar à blockchain.";
+      }
+    };
+
+    // Initialize blockchain when component is mounted
+    initBlockchain();
+
     const submitForm = async () => {
-      if (!certificateCode.value || !studentName.value || !issueDate.value || !file.value) {
+      if (
+        !certificateCode.value ||
+        !studentName.value ||
+        !issueDate.value ||
+        !file.value
+      ) {
         errorMessage.value = "Todos os campos são obrigatórios.";
+        return;
+      }
+
+      // Validate issue date
+      const selectedDate = new Date(issueDate.value);
+      const currentDate = new Date();
+      if (selectedDate > currentDate) {
+        errorMessage.value = "Data de emissão não pode estar no futuro.";
+        return;
+      }
+
+      // Validate file type and size
+      const allowedTypes = ["application/pdf", "image/jpeg", "image/png"];
+      if (!allowedTypes.includes(file.value.type)) {
+        errorMessage.value = "Tipos de arquivo permitidos: PDF, JPEG, PNG.";
+        return;
+      }
+
+      const maxSize = 5 * 1024 * 1024; // 5MB
+      if (file.value.size > maxSize) {
+        errorMessage.value = "O tamanho do arquivo excede 5MB.";
         return;
       }
 
@@ -100,49 +151,62 @@ export default {
         successMessage.value = "";
         errorMessage.value = "";
 
-        // Configurar provider e signer para blockchain
-        const provider = new ethers.BrowserProvider(window.ethereum);
-        const signer = await provider.getSigner();
+        if (!signer.value || !contract.value) {
+          errorMessage.value = "Erro ao conectar à blockchain.";
+          return;
+        }
 
-        // Assinar o hash do certificado
-        const signature = await signer.signMessage(certificateCode.value);
+        // Sign the certificate code
+        const signature = await signer.value.signMessage(
+          certificateCode.value
+        );
 
-        // Interagir com o contrato inteligente
-        const contractAddress = "SEU_ENDEREÇO_DO_CONTRATO";
-        const contractABI = []; // Insira a ABI do seu contrato
-        const contract = new ethers.Contract(contractAddress, contractABI, signer);
-
-        const transaction = await contract.registerCertificate(
+        // Interact with the smart contract
+        const transaction = await contract.value.registerCertificate(
           certificateCode.value,
           studentName.value,
           Math.floor(new Date(issueDate.value).getTime() / 1000),
-          await signer.getAddress()
+          await signer.value.getAddress()
         );
 
         successMessage.value = "Transação enviada. Aguardando confirmação...";
-        await transaction.wait();
+        const receipt = await transaction.wait();
 
-        // Preparar os dados para o backend
-        const formData = new FormData();
-        formData.append("certificate_code", certificateCode.value);
-        formData.append("student_name", studentName.value);
-        formData.append("issue_date", Math.floor(new Date(issueDate.value).getTime() / 1000));
-        formData.append("signature", signature);
-        formData.append("user_address", await signer.getAddress());
-        formData.append("transaction_hash", transaction.hash);
-        formData.append("file", file.value);
+        if (receipt.status === 1) {
+          // Prepare data for the backend
+          const formData = new FormData();
+          formData.append("certificate_code", certificateCode.value);
+          formData.append("student_name", studentName.value);
+          formData.append(
+            "issue_date",
+            Math.floor(new Date(issueDate.value).getTime() / 1000)
+          );
+          formData.append("signature", signature);
+          formData.append("user_address", await signer.value.getAddress());
+          formData.append("transaction_hash", transaction.hash);
+          formData.append("file", file.value);
 
-        // Enviar para o backend
-        const response = await axios.post("http://127.0.0.1:5000/register_certificate", formData);
+          // Send data to the backend
+          const response = await api.post("/register_certificate", formData, {
+            headers: {
+              "Content-Type": "multipart/form-data",
+            },
+          });
 
-        if (response.data.status === "success") {
-          successMessage.value = "Certificado registrado com sucesso!";
-          certificateCode.value = "";
-          studentName.value = "";
-          issueDate.value = "";
-          file.value = null;
+          if (response.data.status === "success") {
+            successMessage.value =
+              "Certificado registrado com sucesso na blockchain e no banco de dados!";
+            certificateCode.value = "";
+            studentName.value = "";
+            issueDate.value = "";
+            file.value = null;
+          } else {
+            throw new Error(
+              response.data.message || "Erro ao registrar certificado."
+            );
+          }
         } else {
-          throw new Error(response.data.message || "Erro ao registrar certificado.");
+          throw new Error("Transação falhou na blockchain.");
         }
       } catch (error) {
         console.error(error);
@@ -168,12 +232,12 @@ export default {
 </script>
 
 <style scoped>
-/* Estilos Globais */
+/* Global Styles */
 * {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
-  font-family: 'Lucida Sans', sans-serif;
+  font-family: "Lucida Sans", sans-serif;
 }
 
 /* Main */
@@ -203,7 +267,7 @@ export default {
   color: #333;
 }
 
-/* Formulário */
+/* Form */
 .upload-form {
   display: flex;
   flex-direction: column;
@@ -230,7 +294,7 @@ export default {
   border-radius: 6px;
 }
 
-/* Botão de Enviar */
+/* Submit Button */
 .upload-form .submit-btn {
   background-color: #4d6ff9;
   color: #fff;
@@ -242,12 +306,12 @@ export default {
   cursor: pointer;
   transition: all 0.3s ease-in-out;
   height: 50px;
-  width: 200px; 
+  width: 200px;
   margin: 0 auto;
   display: block;
 }
 
-/* Efeito Hover */
+/* Hover Effect */
 .upload-form .submit-btn:hover:not(:disabled) {
   background-color: #1abc9c;
   transform: scale(1.05);
@@ -270,7 +334,7 @@ export default {
   font-size: 0.9rem;
 }
 
-/* Responsividade */
+/* Responsiveness */
 @media (max-width: 768px) {
   .container {
     padding: 20px;
