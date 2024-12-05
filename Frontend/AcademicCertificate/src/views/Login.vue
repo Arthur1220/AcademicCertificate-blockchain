@@ -63,12 +63,14 @@
   max-width: 250px;
   background-color: #4D6FF9;
   border: none;
-  border-radius: 8px;
+  border-radius: 30px;
   color: white;
   font-size: 1rem;
   font-weight: bold;
   cursor: pointer;
   transition: all 0.3s ease-in-out;
+  height: 50px;
+  width: 200px;
 }
 
 .container button:hover {
