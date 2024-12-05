@@ -4,20 +4,21 @@ from .extensions import db, migrate
 from .routes import main
 import os
 
-def create_app():
+def create_app(config_object=None):
     app = Flask(__name__)
 
-    # Configurações
-    app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URI')
-    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-    app.config['STORAGE_PATH'] = os.getenv('STORAGE_PATH')
+    if config_object:
+        app.config.from_object(config_object)
+    else:
+        # Carregar configurações padrão
+        app.config.from_object('config.default.Config')  # Caminho completo para a classe Config
 
     # Inicializar extensões
     db.init_app(app)
     migrate.init_app(app, db)
 
     # Configurar CORS para permitir todas as conexões
-    CORS(app)  # Permite todas as origens por padrão
+    CORS(app)  # Permite todas as origens por padrão; ajuste conforme necessário
 
     # Registrar blueprints
     app.register_blueprint(main)
