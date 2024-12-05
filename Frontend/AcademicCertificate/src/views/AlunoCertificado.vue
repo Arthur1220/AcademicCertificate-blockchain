@@ -1,5 +1,6 @@
 <template>
   <div class="certificate-upload">
+    <NavBar />
     <main class="main-content">
       <h2 class="title">Consulta de Certificado Acadêmico</h2>
       
@@ -40,9 +41,13 @@
 
 <script>
 import axios from 'axios'
+import NavBar from '@/components/NavBar.vue'
 
 export default {
   name: 'AlunoCertificado',
+  components: {
+    NavBar
+  },
   data() {
     return {
       certificateHash: '',
@@ -85,37 +90,20 @@ export default {
   background-color: #f5f5f5;
 }
 
-.header {
-  background-color: #1a1a1a;
-  color: white;
-  padding: 1rem 2rem;
-}
-
-.header-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  max-width: 1200px;
-  margin: 0 auto;
-}
-
-.header h1 {
-  margin: 0;
-  font-size: 1.2rem;
-}
-
 .user-info {
   display: flex;
   gap: 1rem;
 }
 
 .main-content {
+  margin-top: 200px;
   max-width: 800px;
   margin: 2rem auto;
   padding: 0 1rem;
 }
 
 .title {
+  margin-top: 200px;
   text-align: center;
   margin-bottom: 3rem;
   font-size: 1.5rem;
