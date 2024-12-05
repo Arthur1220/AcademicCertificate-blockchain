@@ -75,7 +75,8 @@ import {
   getSigner,
   getContract,
 } from "../services/blockchain";
-import api from "../services/api";
+import { contractABI, contractAddress } from "../config";
+import { ethers } from "ethers";
 
 export default {
   components: {
@@ -97,24 +98,28 @@ export default {
       file.value = event.target.files[0];
     };
 
-    const initBlockchain = async () => {
+    const initBlockchainConnection = async () => {
       try {
         await connectWallet();
         signer.value = getSigner();
-        const contractAddress = "SEU_ENDEREÇO_DO_CONTRATO"; // Substitua pelo endereço do seu contrato
-        const contractABI = [/* Insira aqui a ABI do seu contrato */];
         await initContract(contractAddress, contractABI);
         contract.value = getContract();
+        console.log("Blockchain conectado com sucesso.");
       } catch (error) {
         console.error("Erro ao inicializar blockchain:", error);
         errorMessage.value = "Erro ao conectar à blockchain.";
       }
     };
 
-    // Initialize blockchain when component is mounted
-    initBlockchain();
+    // Inicializa a conexão com a blockchain quando o componente é montado
+    initBlockchainConnection();
 
     const submitForm = async () => {
+      // Resetar mensagens de feedback
+      successMessage.value = "";
+      errorMessage.value = "";
+
+      // Validação dos campos do formulário
       if (
         !certificateCode.value ||
         !studentName.value ||
@@ -125,7 +130,7 @@ export default {
         return;
       }
 
-      // Validate issue date
+      // Validar a data de emissão
       const selectedDate = new Date(issueDate.value);
       const currentDate = new Date();
       if (selectedDate > currentDate) {
@@ -133,7 +138,7 @@ export default {
         return;
       }
 
-      // Validate file type and size
+      // Validar o tipo e tamanho do arquivo
       const allowedTypes = ["application/pdf", "image/jpeg", "image/png"];
       if (!allowedTypes.includes(file.value.type)) {
         errorMessage.value = "Tipos de arquivo permitidos: PDF, JPEG, PNG.";
@@ -148,68 +153,46 @@ export default {
 
       try {
         loading.value = true;
-        successMessage.value = "";
-        errorMessage.value = "";
 
         if (!signer.value || !contract.value) {
-          errorMessage.value = "Erro ao conectar à blockchain.";
-          return;
+          throw new Error("Erro ao conectar à blockchain.");
         }
 
-        // Sign the certificate code
-        const signature = await signer.value.signMessage(
+        // Converter o código do certificado para bytes32
+        const certificateHash = ethers.utils.formatBytes32String(
           certificateCode.value
         );
 
-        // Interact with the smart contract
+        // Converter a data de emissão para timestamp UNIX (em segundos)
+        const issueTimestamp = Math.floor(selectedDate.getTime() / 1000);
+
+        // Chamar a função registerCertificate do contrato inteligente
         const transaction = await contract.value.registerCertificate(
-          certificateCode.value,
+          certificateHash,
           studentName.value,
-          Math.floor(new Date(issueDate.value).getTime() / 1000),
-          await signer.value.getAddress()
+          issueTimestamp,
+          { gasLimit: 100000000 }
         );
 
         successMessage.value = "Transação enviada. Aguardando confirmação...";
+        console.log("Transação enviada:", transaction.hash);
+
+        // Aguardar a confirmação da transação
         const receipt = await transaction.wait();
 
         if (receipt.status === 1) {
-          // Prepare data for the backend
-          const formData = new FormData();
-          formData.append("certificate_code", certificateCode.value);
-          formData.append("student_name", studentName.value);
-          formData.append(
-            "issue_date",
-            Math.floor(new Date(issueDate.value).getTime() / 1000)
-          );
-          formData.append("signature", signature);
-          formData.append("user_address", await signer.value.getAddress());
-          formData.append("transaction_hash", transaction.hash);
-          formData.append("file", file.value);
-
-          // Send data to the backend
-          const response = await api.post("/register_certificate", formData, {
-            headers: {
-              "Content-Type": "multipart/form-data",
-            },
-          });
-
-          if (response.data.status === "success") {
-            successMessage.value =
-              "Certificado registrado com sucesso na blockchain e no banco de dados!";
-            certificateCode.value = "";
-            studentName.value = "";
-            issueDate.value = "";
-            file.value = null;
-          } else {
-            throw new Error(
-              response.data.message || "Erro ao registrar certificado."
-            );
-          }
+          successMessage.value =
+            "Certificado registrado com sucesso na blockchain!";
+          // Limpar os campos do formulário
+          certificateCode.value = "";
+          studentName.value = "";
+          issueDate.value = "";
+          file.value = null;
         } else {
           throw new Error("Transação falhou na blockchain.");
         }
       } catch (error) {
-        console.error(error);
+        console.error("Erro ao registrar certificado:", error);
         errorMessage.value = error.message || "Erro ao enviar certificado.";
       } finally {
         loading.value = false;
