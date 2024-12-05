@@ -1,4 +1,5 @@
 from flask import Flask
+from flask_cors import CORS
 from .extensions import db, migrate
 from .routes import main
 import os
@@ -14,6 +15,9 @@ def create_app():
     # Inicializar extensões
     db.init_app(app)
     migrate.init_app(app, db)
+
+    # Configurar CORS para permitir todas as conexões
+    CORS(app)  # Permite todas as origens por padrão
 
     # Registrar blueprints
     app.register_blueprint(main)
