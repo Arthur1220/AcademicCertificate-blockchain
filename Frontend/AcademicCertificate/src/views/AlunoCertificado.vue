@@ -1,144 +1,179 @@
 <template>
-    <div class="certificate-upload">
-      <header class="header">
-        <div class="header-content">
-          <h1>Área do aluno</h1>
-          <div class="user-info">
-            <span>Nome do aluno</span>
-            <span>Sair</span>
-          </div>
-        </div>
-      </header>
-  
-      <main class="main-content">
-        <h2 class="title">Certifique seus documentos academicos aqui</h2>
-        
-        <div class="certificates-list">
-          <div class="certificate-item" @click="handleCertificateClick('certificado')">
-            <span class="certificate-name">Certificado.pdf</span>
-            <span class="status-icon" :class="{ 'uploaded': certificateStatus.certificado }">✓</span>
-          </div>
-        </div>
-  
+  <div class="certificate-upload">
+    <main class="main-content">
+      <h2 class="title">Consulta de Certificado Acadêmico</h2>
+      
+      <div class="search-section">
         <input 
-          type="file" 
-          ref="certificadoInput"
-          @change="handleFileUpload('certificado', $event)"
-          accept=".pdf"
-          style="display: none"
-        >
-      </main>
-    </div>
-  </template>
-  
-  <script>
-  export default {
-    name: 'CertificateUpload',
-    data() {
-      return {
-        certificateStatus: {
-          certificado: false
+          v-model="certificateHash"
+          type="text"
+          placeholder="Digite o hash do certificado"
+          class="hash-input"
+        />
+        <button @click="fetchCertificate" class="search-button">Buscar Certificado</button>
+      </div>
+
+      <div v-if="certificateData" class="certificate-details">
+        <h3>Detalhes do Certificado</h3>
+        <div class="detail-item">
+          <strong>Nome do Aluno:</strong> {{ certificateData.student_name }}
+        </div>
+        <div class="detail-item">
+          <strong>Data de Emissão:</strong> {{ formatDate(certificateData.issue_date) }}
+        </div>
+        <div class="detail-item">
+          <strong>Endereço da Instituição:</strong> {{ certificateData.institution_address }}
+        </div>
+        <div class="detail-item" v-if="certificateData.file_path">
+          <a :href="getFileUrl(certificateData.file_path)" target="_blank" class="view-certificate">
+            Visualizar Certificado
+          </a>
+        </div>
+      </div>
+
+      <div v-if="error" class="error-message">
+        {{ error }}
+      </div>
+    </main>
+  </div>
+</template>
+
+<script>
+import axios from 'axios'
+
+export default {
+  name: 'AlunoCertificado',
+  data() {
+    return {
+      certificateHash: '',
+      certificateData: null,
+      error: null
+    }
+  },
+  methods: {
+    async fetchCertificate() {
+      try {
+        this.error = null
+        this.certificateData = null
+        
+        if (!this.certificateHash) {
+          this.error = 'Por favor, insira o hash do certificado'
+          return
         }
+
+        const response = await axios.get(`/api/get_certificate/${this.certificateHash}`)
+        if (response.data.status === 'success') {
+          this.certificateData = response.data.certificate
+        }
+      } catch (error) {
+        this.error = error.response?.data?.message || 'Erro ao buscar o certificado'
       }
     },
-    methods: {
-      handleCertificateClick(type) {
-        if (type === 'certificado') {
-          this.$refs.certificadoInput.click()
-        }
-      },
-      handleFileUpload(type, event) {
-        const file = event.target.files[0]
-        if (file) {
-          this.certificateStatus[type] = true
-        }
-      }
+    formatDate(timestamp) {
+      return new Date(timestamp * 1000).toLocaleDateString('pt-BR')
+    },
+    getFileUrl(filePath) {
+      return `/api/files/${filePath}`
     }
   }
-  </script>
-  
-  <style scoped>
-  .certificate-upload {
-    min-height: 100vh;
-    background-color: #f5f5f5;
-  }
-  
-  .header {
-    background-color: #1a1a1a;
-    color: white;
-    padding: 1rem 2rem;
-  }
-  
-  .header-content {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    max-width: 1200px;
-    margin: 0 auto;
-  }
-  
-  .header h1 {
-    margin: 0;
-    font-size: 1.2rem;
-  }
-  
-  .user-info {
-    display: flex;
-    gap: 1rem;
-  }
-  
-  .main-content {
-    max-width: 800px;
-    margin: 2rem auto;
-    padding: 0 1rem;
-  }
-  
-  .title {
-    text-align: center;
-    margin-bottom: 3rem;
-    font-size: 1.5rem;
-    color: #333;
-  }
-  
-  .certificates-list {
-    background-color: #1a1a1a;
-    border-radius: 8px;
-    padding: 2rem;
-  }
-  
-  .certificate-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 1rem;
-    color: white;
-    cursor: pointer;
-    transition: background-color 0.2s;
-    border-radius: 4px;
-  }
-  
-  .certificate-item:hover {
-    background-color: #333;
-  }
-  
-  .certificate-name {
-    font-size: 1rem;
-  }
-  
-  .status-icon {
-    width: 20px;
-    height: 20px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 50%;
-    background-color: #333;
-    color: transparent;
-    font-size: 0.8rem;
-  }
-  
-  .status-icon.uploaded {
-    background-color: #4CAF50;
-    color: white;
-  }
-  </style>
+}
+</script>
+
+<style scoped>
+.certificate-upload {
+  min-height: 100vh;
+  background-color: #f5f5f5;
+}
+
+.header {
+  background-color: #1a1a1a;
+  color: white;
+  padding: 1rem 2rem;
+}
+
+.header-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.header h1 {
+  margin: 0;
+  font-size: 1.2rem;
+}
+
+.user-info {
+  display: flex;
+  gap: 1rem;
+}
+
+.main-content {
+  max-width: 800px;
+  margin: 2rem auto;
+  padding: 0 1rem;
+}
+
+.title {
+  text-align: center;
+  margin-bottom: 3rem;
+  font-size: 1.5rem;
+  color: #333;
+}
+
+.search-section {
+  margin-bottom: 2rem;
+  display: flex;
+  gap: 1rem;
+}
+
+.hash-input {
+  flex: 1;
+  padding: 0.5rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 1rem;
+}
+
+.search-button {
+  padding: 0.5rem 1rem;
+  background-color: #1a1a1a;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.search-button:hover {
+  background-color: #333;
+}
+
+.certificate-details {
+  background-color: white;
+  padding: 2rem;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.detail-item {
+  margin-bottom: 1rem;
+}
+
+.view-certificate {
+  display: inline-block;
+  padding: 0.5rem 1rem;
+  background-color: #4CAF50;
+  color: white;
+  text-decoration: none;
+  border-radius: 4px;
+  margin-top: 1rem;
+}
+
+.error-message {
+  color: #dc3545;
+  margin-top: 1rem;
+  text-align: center;
+}
+</style>
