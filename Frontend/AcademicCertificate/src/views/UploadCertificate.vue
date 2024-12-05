@@ -3,11 +3,11 @@
     <!-- Navbar -->
     <Navbar />
 
-    <!-- Conteúdo Principal -->
+    <!-- Main Content -->
     <div class="container">
       <h1>Carregue Seus Certificados Aqui!</h1>
 
-      <!-- Formulário de Upload -->
+      <!-- Upload Form -->
       <form @submit.prevent="submitForm" class="upload-form">
         <div class="form-group">
           <label for="certificate_code">Código do Certificado</label>
@@ -59,7 +59,7 @@
         </div>
       </form>
 
-      <!-- Mensagens de Feedback -->
+      <!-- Feedback Messages -->
       <p v-if="successMessage" class="success-message">{{ successMessage }}</p>
       <p v-if="errorMessage" class="error-message">{{ errorMessage }}</p>
     </div>
@@ -69,8 +69,14 @@
 <script>
 import Navbar from "../components/NavBar.vue";
 import { ref } from "vue";
+import {
+  connectWallet,
+  initContract,
+  getSigner,
+  getContract,
+} from "../services/blockchain";
+import { contractABI, contractAddress } from "../config";
 import { ethers } from "ethers";
-import axios from "axios";
 
 export default {
   components: {
@@ -85,62 +91,105 @@ export default {
     const successMessage = ref("");
     const errorMessage = ref("");
 
+    const signer = ref(null);
+    const contract = ref(null);
+
     const handleFileChange = (event) => {
       file.value = event.target.files[0];
     };
 
+    const initBlockchainConnection = async () => {
+      try {
+        await connectWallet();
+        signer.value = getSigner();
+        await initContract(contractAddress, contractABI);
+        contract.value = getContract();
+        console.log("Blockchain conectado com sucesso.");
+      } catch (error) {
+        console.error("Erro ao inicializar blockchain:", error);
+        errorMessage.value = "Erro ao conectar à blockchain.";
+      }
+    };
+
+    // Inicializa a conexão com a blockchain quando o componente é montado
+    initBlockchainConnection();
+
     const submitForm = async () => {
-      if (!certificateCode.value || !studentName.value || !issueDate.value || !file.value) {
+      // Resetar mensagens de feedback
+      successMessage.value = "";
+      errorMessage.value = "";
+
+      // Validação dos campos do formulário
+      if (
+        !certificateCode.value ||
+        !studentName.value ||
+        !issueDate.value ||
+        !file.value
+      ) {
         errorMessage.value = "Todos os campos são obrigatórios.";
+        return;
+      }
+
+      // Validar a data de emissão
+      const selectedDate = new Date(issueDate.value);
+      const currentDate = new Date();
+      if (selectedDate > currentDate) {
+        errorMessage.value = "Data de emissão não pode estar no futuro.";
+        return;
+      }
+
+      // Validar o tipo e tamanho do arquivo
+      const allowedTypes = ["application/pdf", "image/jpeg", "image/png"];
+      if (!allowedTypes.includes(file.value.type)) {
+        errorMessage.value = "Tipos de arquivo permitidos: PDF, JPEG, PNG.";
+        return;
+      }
+
+      const maxSize = 5 * 1024 * 1024; // 5MB
+      if (file.value.size > maxSize) {
+        errorMessage.value = "O tamanho do arquivo excede 5MB.";
         return;
       }
 
       try {
         loading.value = true;
 
-        // Configurar provider e signer para blockchain
-        const provider = new ethers.BrowserProvider(window.ethereum);
-        const signer = await provider.getSigner();
+        if (!signer.value || !contract.value) {
+          throw new Error("Erro ao conectar à blockchain.");
+        }
 
-        // Assinar o hash do certificado
-        const signature = await signer.signMessage(certificateCode.value);
+        // Converter o código do certificado para bytes32
+        const certificateHash = ethers.utils.formatBytes32String(
+          certificateCode.value
+        );
 
-        // Interagir com o contrato inteligente
-        const contractAddress = "SEU_ENDEREÇO_DO_CONTRATO";
-        const contractABI = []; // Insira a ABI do seu contrato
-        const contract = new ethers.Contract(contractAddress, contractABI, signer);
+        // Converter a data de emissão para timestamp UNIX (em segundos)
+        const issueTimestamp = Math.floor(selectedDate.getTime() / 1000);
 
-        const transaction = await contract.registerCertificate(
-          certificateCode.value,
+        // Chamar a função registerCertificate do contrato inteligente
+        const transaction = await contract.value.registerCertificate(
+          certificateHash,
           studentName.value,
-          Math.floor(new Date(issueDate.value).getTime() / 1000),
-          await signer.getAddress()
+          issueTimestamp,
+          { gasLimit: 1000000 }
         );
 
         successMessage.value = "Transação enviada. Aguardando confirmação...";
-        await transaction.wait();
+        console.log("Transação enviada:", transaction.hash);
 
-        // Preparar os dados para o backend
-        const formData = new FormData();
-        formData.append("certificate_code", certificateCode.value);
-        formData.append("student_name", studentName.value);
-        formData.append("issue_date", Math.floor(new Date(issueDate.value).getTime() / 1000));
-        formData.append("signature", signature);
-        formData.append("user_address", await signer.getAddress());
-        formData.append("transaction_hash", transaction.hash);
-        formData.append("file", file.value);
+        // Aguardar a confirmação da transação
+        const receipt = await transaction.wait();
 
-        // Enviar para o backend
-        const response = await axios.post("http://127.0.0.1:5000/register_certificate", formData);
-
-        if (response.data.status === "success") {
-          successMessage.value = "Certificado registrado com sucesso!";
+        if (receipt.status === 1) {
+          successMessage.value =
+            "Certificado registrado com sucesso na blockchain!";
+          // Limpar os campos do formulário
           certificateCode.value = "";
           studentName.value = "";
           issueDate.value = "";
           file.value = null;
         } else {
-          throw new Error(response.data.message || "Erro ao registrar certificado.");
+          throw new Error("Transação falhou na blockchain.");
         }
       } catch (error) {
         console.error("Erro ao registrar certificado:", error);
@@ -166,12 +215,12 @@ export default {
 </script>
 
 <style scoped>
-/* Estilos Globais */
+/* Global Styles */
 * {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
-  font-family: 'Lucida Sans', sans-serif;
+  font-family: "Lucida Sans", sans-serif;
 }
 
 /* Main */
@@ -201,7 +250,7 @@ export default {
   color: #333;
 }
 
-/* Formulário */
+/* Form */
 .upload-form {
   display: flex;
   flex-direction: column;
@@ -228,7 +277,7 @@ export default {
   border-radius: 6px;
 }
 
-/* Botão de Enviar */
+/* Submit Button */
 .upload-form .submit-btn {
   background-color: #4d6ff9;
   color: #fff;
@@ -240,12 +289,12 @@ export default {
   cursor: pointer;
   transition: all 0.3s ease-in-out;
   height: 50px;
-  width: 200px; 
+  width: 200px;
   margin: 0 auto;
   display: block;
 }
 
-/* Efeito Hover */
+/* Hover Effect */
 .upload-form .submit-btn:hover:not(:disabled) {
   background-color: #1abc9c;
   transform: scale(1.05);
@@ -268,7 +317,7 @@ export default {
   font-size: 0.9rem;
 }
 
-/* Responsividade */
+/* Responsiveness */
 @media (max-width: 768px) {
   .container {
     padding: 20px;
