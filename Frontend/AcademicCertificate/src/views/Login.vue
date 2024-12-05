@@ -5,9 +5,10 @@
       <p class="description">
         Clique no botão abaixo para conectar sua carteira MetaMask. Uma extensão será aberta para autorizar e realizar o login.
       </p>
-      <button @click="connectWallet">
-        {{ isConnected ? `Conectando...` : 'Conectar MetaMask' }}
+      <button @click="connectWallet" :disabled="loading">
+        {{ loading ? 'Conectando...' : 'Conectar MetaMask' }}
       </button>
+      <p v-if="shortAddress" class="success-message">Conectado: {{ shortAddress }}</p>
       <p v-if="errorMessage" class="error-message">{{ errorMessage }}</p>
     </div>
   </div>
@@ -68,17 +69,26 @@
   font-size: 1rem;
   font-weight: bold;
   cursor: pointer;
-  transition: all 0.3s ease-in-out;
-  height: 50px;
-  width: 200px;
+  transition: background-color 0.3s ease-in-out;
 }
 
-.container button:hover {
+.container button:hover:not(:disabled) {
   background-color: #1abc9c;
+}
+
+.container button:disabled {
+  background-color: #cccccc;
+  cursor: not-allowed;
 }
 
 .error-message {
   color: red;
+  margin-top: 10px;
+  font-size: 0.9rem;
+}
+
+.success-message {
+  color: green;
   margin-top: 10px;
   font-size: 0.9rem;
 }
@@ -101,6 +111,7 @@
   .container button {
     height: 45px;
     font-size: 0.95rem;
+    width: 180px;
   }
 }
 
@@ -116,12 +127,13 @@
   .container button {
     height: 40px;
     font-size: 0.9rem;
+    width: 160px;
   }
 }
 </style>
 
 <script>
-import { ref } from 'vue';
+import { ref, onUnmounted } from 'vue';
 import { ethers } from 'ethers';
 import { useRouter } from 'vue-router';
 
@@ -133,22 +145,26 @@ export default {
     const shortAddress = ref('');
     const router = useRouter();
     const errorMessage = ref('');
+    const loading = ref(false);
+    let accountsChangedHandler = null;
 
     const connectWallet = async () => {
       if (window.ethereum) {
         try {
+          loading.value = true;
           const provider = new ethers.BrowserProvider(window.ethereum);
           const accounts = await provider.send('eth_requestAccounts', []);
           account.value = accounts[0];
           shortAddress.value = `${account.value.slice(0, 6)}...${account.value.slice(-4)}`;
           isConnected.value = true;
-          localStorage.setItem('chave', shortAddress.value);
+          localStorage.setItem('address', account.value); // Armazena o endereço completo
+          
           setTimeout(() => {
             router.push({ name: 'UploadCertificate' });
-          }, 2000);
+          }, 1500);
 
           // Ouvir mudanças na conta
-          window.ethereum.on('accountsChanged', (accounts) => {
+          accountsChangedHandler = (accounts) => {
             if (accounts.length > 0) {
               account.value = accounts[0];
               shortAddress.value = `${account.value.slice(0, 6)}...${account.value.slice(-4)}`;
@@ -156,8 +172,12 @@ export default {
               isConnected.value = false;
               account.value = '';
               shortAddress.value = '';
+              localStorage.removeItem('address');
+              router.push({ name: 'Login' }); // Redirecionar para login
             }
-          });
+          };
+
+          window.ethereum.on('accountsChanged', accountsChangedHandler);
         } catch (error) {
           // Tratamento de erros
           if (error.code === 4001) {
@@ -173,17 +193,27 @@ export default {
             console.error('Erro desconhecido:', error);
             errorMessage.value = 'Ocorreu um erro inesperado. Por favor, tente novamente mais tarde.';
           }
+        } finally {
+          loading.value = false;
         }
       } else {
         alert('Por favor, instale o MetaMask!');
       }
     };
 
+    // Remover o listener quando o componente for desmontado
+    onUnmounted(() => {
+      if (accountsChangedHandler) {
+        window.ethereum.removeListener('accountsChanged', accountsChangedHandler);
+      }
+    });
+
     return {
       isConnected,
       connectWallet,
       shortAddress,
       errorMessage,
+      loading,
     };
   },
 };
