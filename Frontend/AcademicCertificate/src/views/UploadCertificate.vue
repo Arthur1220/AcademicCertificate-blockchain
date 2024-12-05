@@ -171,7 +171,7 @@ export default {
           certificateHash,
           studentName.value,
           issueTimestamp,
-          { gasLimit: 100000000 }
+          { gasLimit: 1000000 }
         );
 
         successMessage.value = "Transação enviada. Aguardando confirmação...";
