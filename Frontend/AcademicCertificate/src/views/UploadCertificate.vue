@@ -62,6 +62,7 @@
       <!-- Feedback Messages -->
       <p v-if="successMessage" class="success-message">{{ successMessage }}</p>
       <p v-if="errorMessage" class="error-message">{{ errorMessage }}</p>
+      <p v-if="formData">{{ formData }}</p>
     </div>
   </div>
 </template>
@@ -184,10 +185,24 @@ export default {
           successMessage.value =
             "Certificado registrado com sucesso na blockchain!";
           // Limpar os campos do formulário
+
+          const formData = new FormData();
+          formData.append("certificate_code", certificateCode.value);
+          formData.append("student_name", studentName.value);
+          formData.append("issue_date", Math.floor(selectedDate.getTime() / 1000));
+          formData.append("file", file.value);
+          formData.append("transaction_hash", transaction.hash);
+          formData.append("user_address", localStorage.getItem('chave'));
+
+          // Enviar dados para o back-end
+          const response = await api.post("/register_certificate", formData);
+
           certificateCode.value = "";
           studentName.value = "";
           issueDate.value = "";
           file.value = null;
+
+          alert(response);
         } else {
           throw new Error("Transação falhou na blockchain.");
         }

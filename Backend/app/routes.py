@@ -5,7 +5,6 @@ from .storage import save_file, allowed_file
 from .models import Certificate
 from .extensions import db
 from datetime import datetime
-from .utils import verify_signature
 
 main = Blueprint('main', __name__)
 
@@ -15,23 +14,19 @@ def register_certificate_route():
     Endpoint para registrar um novo certificado.
     Espera-se que o corpo da requisição contenha o arquivo e os dados do certificado.
     """
+    print(request.form.get('certificate_code'))
+    print(request.files.get('file'))
     certificate_code = request.form.get('certificate_code')
     student_name = request.form.get('student_name')
     issue_date = request.form.get('issue_date')  # Formato timestamp
-    signature = request.form.get('signature')
     user_address = request.form.get('user_address')
     transaction_hash = request.form.get('transaction_hash')
 
     file = request.files.get('file')
 
     # Verificar se todos os dados necessários estão presentes
-    if not all([certificate_code, student_name, issue_date, signature, user_address, transaction_hash, file]):
+    if not all([certificate_code, student_name, issue_date, user_address, transaction_hash, file]):
         return jsonify({'status': 'error', 'message': 'Dados incompletos.'}), 400
-
-    # Verificar a assinatura
-    message = encode_defunct(text=certificate_hash)
-    if not verify_signature(user_address, message, signature):
-        return jsonify({'status': 'error', 'message': 'Assinatura inválida.'}), 400
 
     # Verificar se o arquivo possui uma extensão permitida
     if not allowed_file(file.filename):
