@@ -3,11 +3,11 @@
     <!-- Navbar -->
     <Navbar />
 
-    <!-- Main Content -->
+    <!-- Conteúdo Principal -->
     <div class="container">
       <h1>Carregue Seus Certificados Aqui!</h1>
 
-      <!-- Upload Form -->
+      <!-- Formulário de Upload -->
       <form @submit.prevent="submitForm" class="upload-form">
         <div class="form-group">
           <label for="certificate_code">Código do Certificado</label>
@@ -15,7 +15,7 @@
             type="text"
             id="certificate_code"
             v-model="certificateCode"
-            placeholder="Código do Certificado"
+            placeholder="Código do Certificado (0x...)"
             required
           />
         </div>
@@ -59,7 +59,7 @@
         </div>
       </form>
 
-      <!-- Feedback Messages -->
+      <!-- Mensagens de Feedback -->
       <p v-if="successMessage" class="success-message">{{ successMessage }}</p>
       <p v-if="errorMessage" class="error-message">{{ errorMessage }}</p>
     </div>
@@ -68,9 +68,10 @@
 
 <script>
 import Navbar from "../components/NavBar.vue";
-import { ref, onMounted, markRaw } from "vue";
-import { contractABI, contractAddress } from "../config";
-import { ethers } from "ethers";
+import { ref, onMounted } from "vue";
+import { connectWallet, initContract, getSigner, getContract } from "../services/blockchain";
+import api from "../services/api";
+import { utils } from 'ethers';
 
 export default {
   components: {
@@ -87,9 +88,8 @@ export default {
     const errorMessage = ref("");
 
     // Variáveis para armazenar objetos do ethers.js
-    let provider = null;
-    let signer = null;
-    let contract = null;
+    const signer = ref(null);
+    const contract = ref(null);
 
     // Função para lidar com a mudança de arquivo
     const handleFileChange = (event) => {
@@ -99,26 +99,13 @@ export default {
     // Função para inicializar a conexão com a blockchain
     const initBlockchainConnection = async () => {
       try {
-        if (!window.ethereum) {
-          throw new Error("MetaMask não está instalado. Por favor, instale o MetaMask.");
-        }
-
-        // Solicitar ao usuário para conectar a carteira
-        await window.ethereum.request({ method: "eth_requestAccounts" });
-
-        // Criar uma instância do provider e marcar como raw para evitar reatividade
-        provider = markRaw(new ethers.providers.Web3Provider(window.ethereum));
-
-        // Obter o signer a partir do provider e marcar como raw
-        signer = markRaw(provider.getSigner());
-
-        // Inicializar o contrato inteligente e marcar como raw
-        contract = markRaw(new ethers.Contract(contractAddress, contractABI, signer));
-
-        console.log("Blockchain conectado com sucesso.");
+        await connectWallet();
+        signer.value = getSigner();
+        await initContract();
+        contract.value = getContract();
       } catch (error) {
         console.error("Erro ao inicializar blockchain:", error);
-        errorMessage.value = error.message || "Erro ao conectar à blockchain.";
+        errorMessage.value = "Erro ao conectar à blockchain.";
       }
     };
 
@@ -133,13 +120,21 @@ export default {
       successMessage.value = "";
       errorMessage.value = "";
 
-      // Validação dos campos do formulário
+      // Validações no Frontend
       if (!certificateCode.value || !studentName.value || !issueDate.value || !file.value) {
         errorMessage.value = "Todos os campos são obrigatórios.";
         return;
       }
 
-      // Validar a data de emissão
+      // Verificar se o código do certificado está no formato correto (bytes32)
+      // Deve começar com '0x' seguido de 64 caracteres hexadecimais
+      const certificateCodePattern = /^0x[a-fA-F0-9]{64}$/;
+      if (!certificateCodePattern.test(certificateCode.value)) {
+        errorMessage.value = "Código do certificado inválido. Deve ser um hash hexadecimal de 32 bytes.";
+        return;
+      }
+
+      // Verificar se a data de emissão não está no futuro
       const selectedDate = new Date(issueDate.value);
       const currentDate = new Date();
       if (selectedDate > currentDate) {
@@ -147,7 +142,7 @@ export default {
         return;
       }
 
-      // Validar o tipo e tamanho do arquivo
+      // Verificar o tipo e tamanho do arquivo (por exemplo, máximo de 5MB)
       const allowedTypes = ["application/pdf", "image/jpeg", "image/png"];
       if (!allowedTypes.includes(file.value.type)) {
         errorMessage.value = "Tipos de arquivo permitidos: PDF, JPEG, PNG.";
@@ -162,27 +157,21 @@ export default {
 
       try {
         loading.value = true;
+        successMessage.value = "";
+        errorMessage.value = "";
 
-        if (!signer || !contract) {
+        if (!signer.value || !contract.value) {
           throw new Error("Erro ao conectar à blockchain.");
         }
 
-        // Converter o código do certificado para um hash (keccak256)
-        const certificateHash = ethers.utils.keccak256(ethers.utils.toUtf8Bytes(certificateCode.value));
+        // Assinar o código do certificado
+        const signature = await signer.value.signMessage(certificateCode.value);
 
-        // Converter a data de emissão para timestamp UNIX (em segundos)
-        const issueTimestamp = Math.floor(selectedDate.getTime() / 1000);
-
-        // Obter o preço do gas diretamente do provider
-        const gasPrice = await provider.getGasPrice();
-        console.log("GasPrice calculado:", gasPrice.toString());
-
-        // Chamar a função registerCertificate do contrato inteligente
-        const transaction = await contract.registerCertificate(
-          certificateHash,
+        // Interagir com o smart contract para registrar o certificado na blockchain
+        const transaction = await contract.value.registerCertificate(
+          certificateCode.value,
           studentName.value,
-          issueTimestamp,
-          { gasLimit: 300000, gasPrice } // Limite ajustado para 300k gas
+          Math.floor(selectedDate.getTime() / 1000)
         );
 
         successMessage.value = "Transação enviada. Aguardando confirmação...";
@@ -192,17 +181,38 @@ export default {
         const receipt = await transaction.wait();
 
         if (receipt.status === 1) {
-          successMessage.value = "Certificado registrado com sucesso na blockchain!";
-          // Limpar os campos do formulário
-          certificateCode.value = "";
-          studentName.value = "";
-          issueDate.value = "";
-          file.value = null;
+          // Preparar os dados para enviar ao backend
+          const formData = new FormData();
+          formData.append("certificate_code", certificateCode.value);
+          formData.append("student_name", studentName.value);
+          formData.append("issue_date", Math.floor(selectedDate.getTime() / 1000));
+          formData.append("signature", signature);
+          formData.append("user_address", await signer.value.getAddress());
+          formData.append("transaction_hash", transaction.hash);
+          formData.append("file", file.value);
+
+          // Enviar os dados para o backend
+          const response = await api.post("/register_certificate", formData, {
+            headers: {
+              "Content-Type": "multipart/form-data",
+            },
+          });
+
+          if (response.data.status === "success") {
+            successMessage.value = "Certificado registrado com sucesso na blockchain e no banco de dados!";
+            // Resetar o formulário
+            certificateCode.value = "";
+            studentName.value = "";
+            issueDate.value = "";
+            file.value = null;
+          } else {
+            throw new Error(response.data.message || "Erro ao registrar certificado no backend.");
+          }
         } else {
           throw new Error("Transação falhou na blockchain.");
         }
       } catch (error) {
-        console.error("Erro ao registrar certificado:", error);
+        console.error("Erro ao enviar certificado:", error);
         if (error.code === "UNPREDICTABLE_GAS_LIMIT") {
           errorMessage.value = "Limite de gas imprevisível. Tente novamente.";
         } else if (error.code === 4001) { // Erro de rejeição pelo usuário
@@ -231,12 +241,12 @@ export default {
 </script>
 
 <style scoped>
-/* Global Styles */
+/* Estilos similares ao login */
 * {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
-  font-family: "Lucida Sans", sans-serif;
+  font-family: 'Lucida Sans', sans-serif;
 }
 
 /* Main */
@@ -266,7 +276,7 @@ export default {
   color: #333;
 }
 
-/* Form */
+/* Formulário */
 .upload-form {
   display: flex;
   flex-direction: column;
@@ -293,7 +303,7 @@ export default {
   border-radius: 6px;
 }
 
-/* Submit Button */
+/* Botão de Enviar */
 .upload-form .submit-btn {
   background-color: #4d6ff9;
   color: #fff;
@@ -305,12 +315,12 @@ export default {
   cursor: pointer;
   transition: all 0.3s ease-in-out;
   height: 50px;
-  width: 200px;
+  width: 200px; 
   margin: 0 auto;
   display: block;
 }
 
-/* Hover Effect */
+/* Efeito Hover */
 .upload-form .submit-btn:hover:not(:disabled) {
   background-color: #1abc9c;
   transform: scale(1.05);
@@ -333,7 +343,7 @@ export default {
   font-size: 0.9rem;
 }
 
-/* Responsiveness */
+/* Responsividade */
 @media (max-width: 768px) {
   .container {
     padding: 20px;

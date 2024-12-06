@@ -1,23 +1,16 @@
-// src/services/blockchain.js
 import { ethers } from 'ethers';
+import { contractAddress, contractABI } from '../config';
 
 let provider;
 let signer;
 let contract;
 
-// Função para conectar a carteira
 export const connectWallet = async () => {
   if (window.ethereum) {
     try {
-      // Solicita a conexão com a carteira
       await window.ethereum.request({ method: 'eth_requestAccounts' });
-
-      // Inicializa o provider usando ethers.js v5
       provider = new ethers.providers.Web3Provider(window.ethereum);
-
-      // Obtém o signer
       signer = provider.getSigner();
-
       console.log('Carteira conectada:', await signer.getAddress());
       return signer;
     } catch (error) {
@@ -30,17 +23,15 @@ export const connectWallet = async () => {
   }
 };
 
-// Função para inicializar o contrato
-export const initContract = async (contractAddress, contractABI) => {
+export const initContract = async () => {
   if (!signer) {
     await connectWallet();
   }
-  contract = new ethers.Contract(contractAddress, contractABI, signer);
+  contract = new ethers.Contract(contractAddress, contractABI.abi, signer);
   console.log('Contrato inicializado:', contract.address);
   return contract;
 };
 
-// Getters
 export const getProvider = () => provider;
 export const getSigner = () => signer;
 export const getContract = () => contract;
