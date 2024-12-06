@@ -25,6 +25,16 @@ const router = createRouter({
       name: 'aluno',
       component: () => import('../views/AlunoCertificado.vue'),
     },
+    {
+      path: '/cadastro',
+      name: 'cadastro',
+      component: () => import('../views/Cadastro.vue'),
+    },
+    {
+      path: '/equipe' 
+      ,name: 'equipe'
+      ,component: () => import('../views/Equipe.vue')
+    }
   ],
 })
 

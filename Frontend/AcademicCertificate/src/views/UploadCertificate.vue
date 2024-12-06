@@ -242,6 +242,7 @@ export default {
 .main {
   display: flex;
   flex-direction: column;
+  justify-content: center;
   align-items: center;
   min-height: 100vh;
   padding: 20px;
@@ -249,13 +250,15 @@ export default {
 
 /* Container */
 .container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   max-width: 600px;
   width: 100%;
   background-color: #fff;
   border-radius: 10px;
   box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.1);
   padding: 30px;
-  margin-top: 20px;
   text-align: center;
 }
 
@@ -294,7 +297,7 @@ export default {
 
 /* Submit Button */
 .upload-form .submit-btn {
-  background-color: #4d6ff9;
+  background-color: #96FF7C;
   color: #fff;
   border: none;
   padding: 12px 20px;
